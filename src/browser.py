@@ -1,0 +1,232 @@
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+
+from src.types import BrowserState, Action
+
+
+class BrowserManager:
+    def __init__(self, headless: bool = True):
+        self.headless = headless
+        self._playwright = None
+        self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
+        self._page: Page | None = None
+        self._console_logs: list[str] = []
+        self._network_logs: list[str] = []
+        self._network_requests: list[str] = []
+
+    async def start(self) -> None:
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        self._context = await self._browser.new_context()
+        self._page = await self._context.new_page()
+
+        self._page.on("console", self._on_console)
+        self._page.on("requestfinished", self._on_request)
+
+    async def stop(self) -> None:
+        if self._browser:
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
+
+    def _on_console(self, msg: Any) -> None:
+        if msg.type == "error":
+            self._console_logs.append(str(msg.text))
+
+    def _on_request(self, request: Any) -> None:
+        try:
+            response = request.response()
+            if response:
+                status = response.status
+                entry = f"{request.method} {request.url} {status}"
+                self._network_requests.append(entry)
+                if status >= 400:
+                    self._network_logs.append(entry)
+        except Exception:
+            pass
+
+    async def extract_state(self) -> BrowserState:
+        if self._page is None:
+            raise RuntimeError("Browser not started")
+
+        page = self._page
+        url = page.url
+        title = await page.title()
+
+        # Use accessibility snapshot when available
+        try:
+            snapshot = await page.accessibility.snapshot()
+            accessibility_tree = self._serialize_snapshot(snapshot)
+        except Exception:
+            accessibility_tree = ""
+
+        # Extract visible interactive elements via page.evaluate
+        elements = await page.evaluate("""
+            () => {
+                const results = { buttons: [], inputs: [], links: [], visible_text: [] };
+                document.querySelectorAll('button, [role="button"]').forEach(el => {
+                    const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
+                    if (text) results.buttons.push(text);
+                });
+                document.querySelectorAll('input, textarea, select, [contenteditable="true"]').forEach(el => {
+                    const label = el.labels && el.labels[0] ? el.labels[0].innerText.trim() : '';
+                    const name = el.getAttribute('name') || el.getAttribute('placeholder') || el.getAttribute('aria-label') || label || '';
+                    if (name) results.inputs.push(name);
+                });
+                document.querySelectorAll('a').forEach(el => {
+                    const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
+                    if (text) results.links.push(text);
+                });
+                document.querySelectorAll('body, body *').forEach(el => {
+                    if (el.children.length === 0) {
+                        const text = el.innerText.trim();
+                        if (text && text.length < 200) results.visible_text.push(text);
+                    }
+                });
+                return results;
+            }
+        """)
+
+        state = BrowserState(
+            url=url,
+            title=title,
+            visible_text=list(set(elements.get("visible_text", []))),
+            buttons=list(set(elements.get("buttons", []))),
+            inputs=list(set(elements.get("inputs", []))),
+            links=list(set(elements.get("links", []))),
+            console_errors=list(self._console_logs),
+            network_failures=list(self._network_logs),
+            network_requests=list(self._network_requests),
+            accessibility_tree=accessibility_tree,
+        )
+
+        # Clear ephemeral logs after capture
+        self._console_logs.clear()
+        self._network_logs.clear()
+        self._network_requests.clear()
+
+        return state
+
+    def _serialize_snapshot(
+        self, snapshot: dict[str, Any] | None, depth: int = 0
+    ) -> str:
+        if not snapshot:
+            return ""
+        lines: list[str] = []
+        role = snapshot.get("role", "")
+        name = snapshot.get("name", "")
+        if role and name:
+            lines.append(f"{'  ' * depth}{role}: {name}")
+        for child in snapshot.get("children", []):
+            lines.append(self._serialize_snapshot(child, depth + 1))
+        return "\n".join(lines)
+
+    async def execute(self, action: Action) -> str | None:
+        """Execute a single action safely. Returns error message or None."""
+        if self._page is None:
+            return "Browser not started"
+
+        page = self._page
+        try:
+            if action.action == "goto":
+                if action.url:
+                    await page.goto(action.url, wait_until="domcontentloaded")
+                else:
+                    return "goto missing url"
+
+            elif action.action == "click":
+                if action.target:
+                    await self._click_by_text_or_label(action.target)
+                else:
+                    return "click missing target"
+
+            elif action.action == "type":
+                if action.target and action.text is not None:
+                    await self._type_by_text_or_label(action.target, action.text)
+                else:
+                    return "type missing target or text"
+
+            elif action.action == "wait":
+                await asyncio.sleep(1)
+
+            elif action.action == "done":
+                pass
+
+        except Exception as exc:
+            return str(exc)
+
+        return None
+
+    async def _click_by_text_or_label(self, target: str) -> None:
+        """Attempt to click by accessible text, label, or selector fallback."""
+        page = self._page
+        if page is None:
+            return
+
+        # Try exact text match first
+        try:
+            await page.get_by_text(target, exact=False).first.click(timeout=2000)
+            return
+        except Exception:
+            pass
+
+        # Try label/placeholder match on inputs/buttons
+        try:
+            await page.get_by_label(target, exact=False).first.click(timeout=2000)
+            return
+        except Exception:
+            pass
+
+        # Try role+name
+        try:
+            await page.get_by_role("button", name=target, exact=False).first.click(
+                timeout=2000
+            )
+            return
+        except Exception:
+            pass
+
+        # Fallback to CSS selector if it looks like one
+        if target.startswith("#") or target.startswith(".") or target.startswith("["):
+            await page.locator(target).first.click(timeout=2000)
+            return
+
+        raise RuntimeError(f"Could not find clickable element for: {target}")
+
+    async def _type_by_text_or_label(self, target: str, text: str) -> None:
+        """Attempt to type into an input by label, placeholder, or selector."""
+        page = self._page
+        if page is None:
+            return
+
+        try:
+            await page.get_by_label(target, exact=False).first.fill(text, timeout=2000)
+            return
+        except Exception:
+            pass
+
+        try:
+            await page.get_by_placeholder(target, exact=False).first.fill(
+                text, timeout=2000
+            )
+            return
+        except Exception:
+            pass
+
+        try:
+            await page.locator(f"input[name='{target}']").first.fill(text, timeout=2000)
+            return
+        except Exception:
+            pass
+
+        # Fallback to CSS selector
+        if target.startswith("#") or target.startswith(".") or target.startswith("["):
+            await page.locator(target).first.fill(text, timeout=2000)
+            return
+
+        raise RuntimeError(f"Could not find input element for: {target}")
