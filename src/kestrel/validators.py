@@ -3,7 +3,7 @@ from __future__ import annotations
 import fnmatch
 from typing import Any, Callable
 
-from src.types import BrowserState, ValidatorResult
+from kestrel.types import BrowserState, ValidatorResult
 
 ValidatorFn = Callable[[BrowserState, Any], ValidatorResult]
 

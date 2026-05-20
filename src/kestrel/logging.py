@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-from src.types import AgentResult
+from kestrel.types import AgentResult
 
 
 def log_event(level: str, message: str, extra: dict[str, Any] | None = None) -> None:

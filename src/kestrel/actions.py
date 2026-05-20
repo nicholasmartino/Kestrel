@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from src.types import Action
+from kestrel.types import Action
 
 
 class ActionError(Exception):

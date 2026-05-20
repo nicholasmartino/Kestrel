@@ -5,8 +5,8 @@ from typing import Any
 
 import aiohttp
 
-from src.types import BrowserState, Action
-from src.actions import action_to_prompt_example
+from kestrel.types import BrowserState, Action
+from kestrel.actions import action_to_prompt_example
 
 
 class LLMClient:

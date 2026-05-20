@@ -4,7 +4,7 @@ import hashlib
 import time
 from typing import Any
 
-from src.types import (
+from kestrel.types import (
     Spec,
     BrowserState,
     Action,
@@ -12,10 +12,10 @@ from src.types import (
     AgentResult,
     ValidatorResult,
 )
-from src.browser import BrowserManager
-from src.llm import LLMClient
-from src.actions import parse_action, ActionError
-from src import validators
+from kestrel.browser import BrowserManager
+from kestrel.llm import LLMClient
+from kestrel.actions import parse_action, ActionError
+from kestrel import validators
 
 
 class Agent:

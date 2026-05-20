@@ -7,7 +7,7 @@ from typing import Any
 
 import aiohttp
 
-from src.logging import log_event
+from kestrel.logging import log_event
 
 
 class OllamaManager:

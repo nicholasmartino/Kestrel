@@ -10,12 +10,12 @@ import click
 import yaml
 from dotenv import load_dotenv
 
-from src.agent import Agent
-from src.browser import BrowserManager
-from src.llm import LLMClient
-from src.ollama_manager import OllamaManager
-from src.types import Spec
-from src.logging import log_event, print_result
+from kestrel.agent import Agent
+from kestrel.browser import BrowserManager
+from kestrel.llm import LLMClient
+from kestrel.ollama_manager import OllamaManager
+from kestrel.types import Spec
+from kestrel.logging import log_event, print_result
 
 
 def _load_spec(path: Path) -> Spec:

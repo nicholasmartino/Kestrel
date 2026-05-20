@@ -5,7 +5,7 @@ from typing import Any
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
-from src.types import BrowserState, Action
+from kestrel.types import BrowserState, Action
 
 
 class BrowserManager:

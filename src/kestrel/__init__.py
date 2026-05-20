@@ -1,8 +1,8 @@
-from src.agent import Agent
-from src.browser import BrowserManager
-from src.llm import LLMClient
-from src.ollama_manager import OllamaManager
-from src.types import (
+from kestrel.agent import Agent
+from kestrel.browser import BrowserManager
+from kestrel.llm import LLMClient
+from kestrel.ollama_manager import OllamaManager
+from kestrel.types import (
     Spec,
     Action,
     BrowserState,
@@ -10,10 +10,10 @@ from src.types import (
     ValidatorResult,
     StepResult,
 )
-from src.actions import parse_action
-from src.validators import evaluate, register
-from src.logging import log_event, print_result
-from src.cli import main
+from kestrel.actions import parse_action
+from kestrel.validators import evaluate, register
+from kestrel.logging import log_event, print_result
+from kestrel.cli import main
 
 __all__ = [
     "Agent",
