@@ -36,4 +36,4 @@ kestrel = "kestrel.cli:main"
 Repository = "https://github.com/nicholasmartino/kestrel"
 
 [tool.hatch.build.targets.wheel]
-packages = ["kestrel"]
+packages = ["src/kestrel"]
