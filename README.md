@@ -7,7 +7,7 @@ Kestrel operates a live browser session dynamically. It does **not** generate te
 ## Architecture
 
 - **Playwright** is the execution engine
-- **LLM** (Qwen 2.5 via Ollama) is the decision/planning engine
+- **LLM** (Llama 3.2 via Ollama) is the decision/planning engine
 - **Validators** determine pass/fail deterministically
 - **Agent** explores and recovers autonomously
 
@@ -43,7 +43,7 @@ ollama serve
 ### 2. Pull the model
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull llama3.2:3b
 ```
 
 ### 3. Write a spec
@@ -92,7 +92,7 @@ Commands:
 kestrel run specs/login.yml \
   --headless \
   --base-url http://localhost:5173 \
-  --model qwen2.5:3b \
+  --model llama3.2:3b \
   --ollama-url http://localhost:11434
 ```
 
