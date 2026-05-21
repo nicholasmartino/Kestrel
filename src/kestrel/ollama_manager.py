@@ -14,7 +14,7 @@ class OllamaManager:
     def __init__(
         self,
         base_url: str = "http://localhost:11434",
-        model: str = "qwen2.5:7b",
+        model: str = "qwen2.5:3b",
     ):
         self.base_url = base_url
         self.model = model

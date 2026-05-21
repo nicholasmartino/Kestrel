@@ -43,7 +43,7 @@ ollama serve
 ### 2. Pull the model
 
 ```bash
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:3b
 ```
 
 ### 3. Write a spec
@@ -92,7 +92,7 @@ Commands:
 kestrel run specs/login.yml \
   --headless \
   --base-url http://localhost:5173 \
-  --model qwen2.5:7b \
+  --model qwen2.5:3b \
   --ollama-url http://localhost:11434
 ```
 
@@ -106,6 +106,7 @@ kestrel init-workflow --target-repo .
 ```
 
 This creates:
+
 - `tests/autonomous/specs/login.yml`
 - `tests/autonomous/.env.example`
 - `.github/workflows/autonomous-test.yml`
@@ -114,25 +115,25 @@ This creates:
 
 Specs are YAML files with the following structure:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `goal` | string | High-level objective for the LLM |
-| `validators` | list | Deterministic assertions (see below) |
-| `hints` | list | Optional guidance for the LLM |
-| `base_url` | string | Starting URL |
-| `max_steps` | int | Maximum actions before giving up (default: 20) |
-| `timeout_seconds` | int | Global timeout (default: 60) |
+| Field             | Type   | Description                                    |
+| ----------------- | ------ | ---------------------------------------------- |
+| `goal`            | string | High-level objective for the LLM               |
+| `validators`      | list   | Deterministic assertions (see below)           |
+| `hints`           | list   | Optional guidance for the LLM                  |
+| `base_url`        | string | Starting URL                                   |
+| `max_steps`       | int    | Maximum actions before giving up (default: 20) |
+| `timeout_seconds` | int    | Global timeout (default: 60)                   |
 
 ## Validators
 
 Validators are the **only** source of truth for pass/fail.
 
-| Validator | Example | Description |
-|-----------|---------|-------------|
-| `url_contains` | `url_contains: /dashboard` | Passes if current URL contains substring |
-| `text_visible` | `text_visible: Welcome` | Passes if text appears anywhere on page |
-| `no_console_errors` | `no_console_errors: null` | Passes if no console errors occurred |
-| `network_status` | `network_status: "POST /checkout = 200"` | Passes if matching request has expected status |
+| Validator           | Example                                  | Description                                    |
+| ------------------- | ---------------------------------------- | ---------------------------------------------- |
+| `url_contains`      | `url_contains: /dashboard`               | Passes if current URL contains substring       |
+| `text_visible`      | `text_visible: Welcome`                  | Passes if text appears anywhere on page        |
+| `no_console_errors` | `no_console_errors: null`                | Passes if no console errors occurred           |
+| `network_status`    | `network_status: "POST /checkout = 200"` | Passes if matching request has expected status |
 
 ## Extending Validators
 
@@ -156,10 +157,12 @@ def my_validator(state: BrowserState, arg):
 Use `kestrel init-workflow` to generate a workflow for self-hosted runners.
 
 Required secrets:
+
 - `TEST_USER_EMAIL`
 - `TEST_USER_PASSWORD`
 
 The workflow assumes:
+
 - Self-hosted runner with Python 3.11+
 - Ollama installed (Kestrel will auto-start if needed)
 - Network access to Ollama on `localhost:11434`

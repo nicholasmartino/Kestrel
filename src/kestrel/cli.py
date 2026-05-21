@@ -34,7 +34,7 @@ def cli() -> None:
 @click.argument("spec_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--headless/--headed", default=True, help="Run browser in headless mode")
 @click.option("--base-url", default="", help="Override base URL from spec")
-@click.option("--model", default="qwen2.5:7b", help="Ollama model to use")
+@click.option("--model", default="qwen2.5:3b", help="Ollama model to use")
 @click.option("--ollama-url", default="http://localhost:11434", help="Ollama API URL")
 @click.option(
     "--browser-args",
