@@ -88,7 +88,7 @@ class BrowserManager:
                 });
                 document.querySelectorAll('body, body *').forEach(el => {
                     if (el.children.length === 0) {
-                        const text = el.innerText.trim();
+                        const text = (el.innerText || '').trim();
                         if (text && text.length < 200) results.visible_text.push(text);
                     }
                 });
