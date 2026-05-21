@@ -9,8 +9,9 @@ from kestrel.types import BrowserState, Action
 
 
 class BrowserManager:
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: bool = True, launch_args: list[str] | None = None):
         self.headless = headless
+        self._launch_args = launch_args or []
         self._playwright = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -21,7 +22,10 @@ class BrowserManager:
 
     async def start(self) -> None:
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        self._browser = await self._playwright.chromium.launch(
+            headless=self.headless,
+            args=self._launch_args,
+        )
         self._context = await self._browser.new_context()
         self._page = await self._context.new_page()
 
@@ -38,9 +42,9 @@ class BrowserManager:
         if msg.type == "error":
             self._console_logs.append(str(msg.text))
 
-    def _on_request(self, request: Any) -> None:
+    async def _on_request(self, request: Any) -> None:
         try:
-            response = request.response()
+            response = await request.response()
             if response:
                 status = response.status
                 entry = f"{request.method} {request.url} {status}"

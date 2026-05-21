@@ -37,6 +37,11 @@ def cli() -> None:
 @click.option("--model", default="qwen2.5:7b", help="Ollama model to use")
 @click.option("--ollama-url", default="http://localhost:11434", help="Ollama API URL")
 @click.option(
+    "--browser-args",
+    default="",
+    help="Additional Chromium launch arguments (space-separated, e.g. --no-sandbox)",
+)
+@click.option(
     "--env-file",
     type=click.Path(exists=True, path_type=Path),
     help="Load environment variables from file",
@@ -47,6 +52,7 @@ def run(
     base_url: str,
     model: str,
     ollama_url: str,
+    browser_args: str,
     env_file: Path | None,
 ) -> None:
     """Run a single spec file."""
@@ -83,7 +89,8 @@ def run(
             return 1
 
         # Run agent
-        browser = BrowserManager(headless=headless)
+        parsed_args = browser_args.split() if browser_args else []
+        browser = BrowserManager(headless=headless, launch_args=parsed_args)
         llm = LLMClient(model=model, base_url=ollama_url)
         agent = Agent(spec=spec, browser=browser, llm=llm, headless=headless)
         result = await agent.run()
