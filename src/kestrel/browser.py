@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
@@ -89,8 +90,14 @@ class BrowserManager:
                 });
                 qsaDeep('input, textarea, select, [contenteditable="true"]').forEach(el => {
                     const label = el.labels?.[0]?.innerText.trim() ?? '';
-                    const name = el.getAttribute('name') || el.getAttribute('placeholder') || el.getAttribute('aria-label') || label || '';
-                    if (name) results.inputs.push(name);
+                    const name = el.getAttribute('name') || el.getAttribute('placeholder') || el.getAttribute('aria-label') || '';
+                    if (label && name) {
+                        results.inputs.push(`${name} (${label})`);
+                    } else if (name) {
+                        results.inputs.push(name);
+                    } else if (label) {
+                        results.inputs.push(label);
+                    }
                 });
                 qsaDeep('a').forEach(el => {
                     const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
@@ -218,22 +225,37 @@ class BrowserManager:
         if page is None:
             return
 
+        # Extract label from "name (label)" format used in state extraction
+        label_match = re.match(r"^(.+?)\s*\((.+)\)$", target)
+        label = label_match.group(2) if label_match else target
+        name = label_match.group(1) if label_match else target
+
+        # Try the extracted label first
         try:
-            await page.get_by_label(target, exact=False).first.fill(text, timeout=2000)
+            await page.get_by_label(label, exact=False).first.fill(text, timeout=2000)
             return
         except Exception:
             pass
 
+        # Try the raw target as label
+        if label != target:
+            try:
+                await page.get_by_label(target, exact=False).first.fill(text, timeout=2000)
+                return
+            except Exception:
+                pass
+
         try:
-            await page.get_by_placeholder(target, exact=False).first.fill(
+            await page.get_by_placeholder(label, exact=False).first.fill(
                 text, timeout=2000
             )
             return
         except Exception:
             pass
 
+        # Try input[name='name'] with the extracted name
         try:
-            await page.locator(f"input[name='{target}']").first.fill(text, timeout=2000)
+            await page.locator(f"input[name='{name}']").first.fill(text, timeout=2000)
             return
         except Exception:
             pass
