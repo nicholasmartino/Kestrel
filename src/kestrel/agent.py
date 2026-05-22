@@ -66,6 +66,19 @@ class Agent:
 
                 state = await self.browser.extract_state()
 
+                # Auto-wait if sign-in form hasn't rendered yet
+                has_form_controls = any(
+                    b.lower() in ("continue", "sign in", "submit", "log in")
+                    for b in state.buttons
+                )
+                if not state.inputs and not has_form_controls:
+                    action = Action(action="wait")
+                    steps.append(StepResult(step=self._step, action=action, state_before=state))
+                    await self.browser.execute(action)
+                    self._history.append((action, None))
+                    self._step += 1
+                    continue
+
                 # Evaluate validators after each step (except before first action)
                 if self._step > 0:
                     validator_results = self._evaluate_validators(state)
