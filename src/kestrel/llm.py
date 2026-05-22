@@ -74,7 +74,7 @@ class LLMClient:
             "6. Avoid unnecessary navigation.\n"
             "7. You may NOT mark success yourself; only the validator engine decides pass/fail.\n\n"
             "Supported actions:\n"
-            f"- Navigate: {action_to_prompt_example(Action('goto', url='https://example.com'))}\n"
+            f"- Navigate: {action_to_prompt_example(Action('goto', url='http://localhost:5173'))}\n"
             f"- Click: {action_to_prompt_example(Action('click', target='Submit'))}\n"
             f"- Type: {action_to_prompt_example(Action('type', target='Email', text='user@example.com'))}\n"
             f"- Wait: {action_to_prompt_example(Action('wait'))}\n"
