@@ -73,21 +73,31 @@ class BrowserManager:
         elements = await page.evaluate("""
             () => {
                 const results = { buttons: [], inputs: [], links: [], visible_text: [] };
-                document.querySelectorAll('button, [role="button"]').forEach(el => {
+
+                function qsaDeep(selector, root = document) {
+                    const found = Array.from(root.querySelectorAll(selector));
+                    root.querySelectorAll('*').forEach(el => {
+                        if (el.shadowRoot)
+                            found.push(...qsaDeep(selector, el.shadowRoot));
+                    });
+                    return found;
+                }
+
+                qsaDeep('button, [role="button"]').forEach(el => {
                     const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
                     if (text) results.buttons.push(text);
                 });
-                document.querySelectorAll('input, textarea, select, [contenteditable="true"]').forEach(el => {
-                    const label = el.labels && el.labels[0] ? el.labels[0].innerText.trim() : '';
+                qsaDeep('input, textarea, select, [contenteditable="true"]').forEach(el => {
+                    const label = el.labels?.[0]?.innerText.trim() ?? '';
                     const name = el.getAttribute('name') || el.getAttribute('placeholder') || el.getAttribute('aria-label') || label || '';
                     if (name) results.inputs.push(name);
                 });
-                document.querySelectorAll('a').forEach(el => {
+                qsaDeep('a').forEach(el => {
                     const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
                     if (text) results.links.push(text);
                 });
-                document.querySelectorAll('body, body *').forEach(el => {
-                    if (el.children.length === 0) {
+                qsaDeep('*').forEach(el => {
+                    if (el.children.length === 0 && el.parentNode) {
                         const text = (el.innerText || '').trim();
                         if (text && text.length < 200) results.visible_text.push(text);
                     }
