@@ -7,6 +7,7 @@ import aiohttp
 
 from kestrel.types import BrowserState, Action
 from kestrel.actions import action_to_prompt_example
+from kestrel.logging import log_event
 
 
 class LLMClient:
@@ -59,7 +60,9 @@ class LLMClient:
                     content = content[3:]
                 if content.endswith("```"):
                     content = content[:-3]
-                return content.strip()
+                content = content.strip()
+                log_event("debug", "LLM response", {"raw": content})
+                return content
 
     def _system_prompt(self) -> str:
         return (
