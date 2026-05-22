@@ -36,6 +36,7 @@ def print_result(result: AgentResult) -> None:
                 "step": s.step,
                 "action": s.action.to_dict(),
                 "error": s.error,
+                "state_before": s.state_before.to_dict() if s.state_before else None,
             }
             for s in result.steps
         ],
