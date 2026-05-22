@@ -77,6 +77,7 @@ def run(
         return re.sub(r"\$\{(\w+)\}", replacer, value)
 
     spec.hints = [_substitute_env(h) for h in spec.hints]
+    log_event("debug", "Resolved hints", {"hints": spec.hints})
 
     async def _run() -> int:
         # Ensure Ollama
