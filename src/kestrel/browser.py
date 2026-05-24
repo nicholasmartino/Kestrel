@@ -260,9 +260,33 @@ class BrowserManager:
         except Exception:
             pass
 
+        # Case-insensitive CSS name match
+        try:
+            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=2000)
+            return
+        except Exception:
+            pass
+
+        # Try matching by id (common pattern with htmlFor labels)
+        try:
+            await page.locator(f"#{name.lower()}").first.fill(text, timeout=2000)
+            return
+        except Exception:
+            pass
+
+        # Force fill as last resort to bypass overlays (cookie consent, etc.)
+        try:
+            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=2000, force=True)
+            return
+        except Exception:
+            pass
+
         # Fallback to CSS selector
         if target.startswith("#") or target.startswith(".") or target.startswith("["):
-            await page.locator(target).first.fill(text, timeout=2000)
-            return
+            try:
+                await page.locator(target).first.fill(text, timeout=2000, force=True)
+                return
+            except Exception:
+                pass
 
         raise RuntimeError(f"Could not find input element for: {target}")
