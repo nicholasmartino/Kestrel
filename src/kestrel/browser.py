@@ -189,21 +189,21 @@ class BrowserManager:
         if page is None:
             return
 
-        # Try exact text match first
+        # Try text match first
         try:
             await page.get_by_text(target, exact=False).first.click(timeout=2000)
             return
         except Exception:
             pass
 
-        # Try label/placeholder match on inputs/buttons
+        # Try label match
         try:
             await page.get_by_label(target, exact=False).first.click(timeout=2000)
             return
         except Exception:
             pass
 
-        # Try role+name
+        # Try button role+name
         try:
             await page.get_by_role("button", name=target, exact=False).first.click(
                 timeout=2000
@@ -212,10 +212,38 @@ class BrowserManager:
         except Exception:
             pass
 
-        # Fallback to CSS selector if it looks like one
-        if target.startswith("#") or target.startswith(".") or target.startswith("["):
-            await page.locator(target).first.click(timeout=2000)
+        # Try CSS selector without force
+        try:
+            if target.startswith("#") or target.startswith(".") or target.startswith("["):
+                await page.locator(target).first.click(timeout=2000)
+                return
+        except Exception:
+            pass
+
+        # Force-click fallback: bypass overlays (cookie consent, modals, etc.)
+        try:
+            await page.get_by_text(target, exact=False).first.click(
+                timeout=2000, force=True
+            )
             return
+        except Exception:
+            pass
+
+        try:
+            await page.get_by_role("button", name=target, exact=False).first.click(
+                timeout=2000, force=True
+            )
+            return
+        except Exception:
+            pass
+
+        # Force click with case-insensitive CSS matching
+        try:
+            css_target = re.sub(r'\[(\w+)=([^\]]+)\]', r'[\1=\2 i]', target)
+            await page.locator(css_target).first.click(timeout=2000, force=True)
+            return
+        except Exception:
+            pass
 
         raise RuntimeError(f"Could not find clickable element for: {target}")
 
