@@ -29,11 +29,11 @@ class BrowserState:
     visible_text: list[str]
     buttons: list[str]
     inputs: list[str]
-    filled_inputs: list[str] = field(default_factory=list)
     links: list[str]
     console_errors: list[str]
     network_failures: list[str]
     network_requests: list[str]
+    filled_inputs: list[str] = field(default_factory=list)
     accessibility_tree: str = ""
 
     def to_dict(self) -> dict[str, Any]:
