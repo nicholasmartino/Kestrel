@@ -29,6 +29,7 @@ class BrowserState:
     visible_text: list[str]
     buttons: list[str]
     inputs: list[str]
+    filled_inputs: list[str] = field(default_factory=list)
     links: list[str]
     console_errors: list[str]
     network_failures: list[str]
@@ -42,6 +43,7 @@ class BrowserState:
             "visible_text": self.visible_text,
             "buttons": self.buttons,
             "inputs": self.inputs,
+            "filled_inputs": self.filled_inputs,
             "links": self.links,
             "console_errors": self.console_errors,
             "network_failures": self.network_failures,

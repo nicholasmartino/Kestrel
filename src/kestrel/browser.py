@@ -126,6 +126,7 @@ class BrowserManager:
             visible_text=list(set(elements.get("visible_text", []))),
             buttons=list(set(elements.get("buttons", []))),
             inputs=list(set(elements.get("inputs", []))),
+            filled_inputs=list(set(elements.get("filled_inputs", []))),
             links=list(set(elements.get("links", []))),
             console_errors=list(self._console_logs),
             network_failures=list(self._network_logs),

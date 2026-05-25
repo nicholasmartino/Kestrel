@@ -113,6 +113,8 @@ class LLMClient:
             lines.append(f"  Buttons: {state.buttons[:15]}")
         if state.inputs:
             lines.append(f"  Inputs: {state.inputs[:15]}")
+        if state.filled_inputs:
+            lines.append(f"  Filled inputs: {state.filled_inputs[:15]}")
         if state.links:
             lines.append(f"  Links: {state.links[:15]}")
         if state.visible_text:
@@ -127,8 +129,9 @@ class LLMClient:
             lines.append("ACTION HISTORY (most recent last):")
             for idx, (act, err) in enumerate(history[-10:], 1):
                 err_str = f" [ERROR: {err}]" if err else ""
+                text_str = f' "{act.text}" into' if act.text else ""
                 lines.append(
-                    f"  {idx}. {act.action}{f' {act.target}' if act.target else ''}{err_str}"
+                    f"  {idx}. {act.action}{text_str}{f' {act.target}' if act.target else ''}{err_str}"
                 )
             lines.append("")
 
