@@ -73,7 +73,7 @@ class BrowserManager:
         # Extract visible interactive elements via page.evaluate
         elements = await page.evaluate("""
             () => {
-                const results = { buttons: [], inputs: [], links: [], visible_text: [] };
+                const results = { buttons: [], inputs: [], filled_inputs: [], links: [], visible_text: [] };
 
                 function qsaDeep(selector, root = document) {
                     const found = Array.from(root.querySelectorAll(selector));
@@ -88,16 +88,23 @@ class BrowserManager:
                     const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
                     if (text) results.buttons.push(text);
                 });
+                const inputEntries = [];
                 qsaDeep('input, textarea, select, [contenteditable="true"]').forEach(el => {
                     const label = el.labels?.[0]?.innerText.trim() ?? '';
                     const name = el.getAttribute('name') || el.getAttribute('placeholder') || el.getAttribute('aria-label') || '';
+                    const isEmpty = (el.value ?? '').trim() === '';
+                    let entry;
                     if (label && name) {
-                        results.inputs.push(`${name} (${label})`);
+                        entry = `${name} (${label})`;
                     } else if (name) {
-                        results.inputs.push(name);
+                        entry = name;
                     } else if (label) {
-                        results.inputs.push(label);
+                        entry = label;
+                    } else {
+                        entry = 'input';
                     }
+                    results.inputs.push(entry);
+                    if (!isEmpty) results.filled_inputs.push(entry);
                 });
                 qsaDeep('a').forEach(el => {
                     const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
