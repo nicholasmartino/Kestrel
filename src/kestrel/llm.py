@@ -113,11 +113,10 @@ class LLMClient:
         if state.buttons:
             lines.append(f"  Buttons: {state.buttons[:15]}")
         if state.filled_inputs:
-            lines.append(
-                f"  Filled inputs (do NOT type into these): {state.filled_inputs[:15]}"
-            )
-        if state.inputs:
-            lines.append(f"  Inputs (needs typing): {state.inputs[:15]}")
+            lines.append(f"  Filled inputs (do NOT type into these): {state.filled_inputs[:15]}")
+        unfilled = [i for i in state.inputs if i not in state.filled_inputs]
+        if unfilled:
+            lines.append(f"  Inputs (needs typing): {unfilled[:15]}")
         if state.links:
             lines.append(f"  Links: {state.links[:15]}")
         if state.visible_text:
