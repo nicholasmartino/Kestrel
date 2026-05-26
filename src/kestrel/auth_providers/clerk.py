@@ -51,18 +51,16 @@ class ClerkAuthProvider(AuthProvider):
             log_event("warn", "Clerk JS did not load in time", {})
             return False
 
-        sign_in_token = await self._create_sign_in_token()
-        if not sign_in_token:
-            return False
-
-        escaped_ticket = json.dumps(sign_in_token)
+        escaped_identifier = json.dumps(self.identifier)
+        escaped_password = json.dumps(self.password)
         try:
             success = await page.evaluate(f"""
                 (async () => {{
                     try {{
                         const signIn = await window.Clerk.client.signIn.create({{
-                            strategy: "ticket",
-                            ticket: {escaped_ticket}
+                            identifier: {escaped_identifier},
+                            password: {escaped_password},
+                            strategy: "password"
                         }});
                         if (signIn.status === 'complete') {{
                             await window.Clerk.setActive({{
@@ -72,17 +70,17 @@ class ClerkAuthProvider(AuthProvider):
                         }}
                         return false;
                     }} catch (e) {{
-                        console.error('Clerk ticket sign-in failed:', e);
+                        console.error('Clerk password sign-in failed:', e);
                         return false;
                     }}
                 }})()
             """)
         except Exception as e:
-            log_event("warn", "Clerk ticket sign-in failed", {"error": str(e)})
+            log_event("warn", "Clerk password sign-in failed", {"error": str(e)})
             return False
 
         if not success:
-            log_event("warn", "Clerk ticket sign-in did not complete", {})
+            log_event("warn", "Clerk password sign-in did not complete", {})
             return False
 
         try:
@@ -145,64 +143,6 @@ class ClerkAuthProvider(AuthProvider):
                 await route.continue_()
 
         await context.route(pattern, handle_route)
-
-    async def _create_sign_in_token(self) -> str | None:
-        async with aiohttp.ClientSession(
-            headers={
-                "Authorization": f"Bearer {self.secret_key}",
-                "Content-Type": "application/json",
-            }
-        ) as session:
-            log_event("info", "Looking up Clerk user", {
-                "identifier": self.identifier,
-            })
-            resp = await session.get(
-                f"{API_BASE}/users",
-                params={"email_address": [self.identifier]},
-            )
-            users_data = await resp.json()
-
-            if resp.status != 200:
-                log_event("warn", "Clerk user lookup failed", {
-                    "status": resp.status,
-                    "response": users_data,
-                })
-                return None
-
-            users = users_data.get("data", []) if isinstance(users_data, dict) else []
-            if not users:
-                log_event("warn", "No Clerk user found for email", {
-                    "identifier": self.identifier,
-                })
-                return None
-
-            user_id = users[0].get("id")
-            log_event("info", "Clerk user found", {"user_id": user_id})
-
-            log_event("info", "Creating Clerk sign-in token", {})
-            token_resp = await session.post(
-                f"{API_BASE}/sign_in_tokens",
-                json={
-                    "user_id": user_id,
-                    "expires_in_seconds": 300,
-                },
-            )
-            token_data = await token_resp.json()
-
-            if token_resp.status != 200:
-                log_event("warn", "Clerk sign-in token creation failed", {
-                    "status": token_resp.status,
-                    "response": token_data,
-                })
-                return None
-
-            token = token_data.get("token") if isinstance(token_data, dict) else None
-            if not token:
-                log_event("warn", "No token in Clerk sign-in token response", {})
-                return None
-
-            log_event("info", "Clerk sign-in token created", {})
-            return token
 
     async def _generate_testing_token(self) -> str | None:
         async with aiohttp.ClientSession(
