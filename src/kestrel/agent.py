@@ -223,8 +223,12 @@ class Agent:
         if self.spec.buffer:
             log_event("info", "Buffer started", {"timeout": self.spec.buffer.timeout, "until": self.spec.buffer.until})
             deadline = time.monotonic() + self.spec.buffer.timeout
+            poll_count = 0
             while time.monotonic() < deadline:
                 state = await self.browser.extract_state()
+                poll_count += 1
+                if poll_count % 5 == 1:
+                    log_event("debug", "Buffer poll", {"url": state.url, "title": state.title, "buttons": state.buttons[:5], "visible_text": state.visible_text[:5]})
                 if self.spec.buffer.until:
                     result = validators.evaluate(state, self.spec.buffer.until)
                     if result.passed:
@@ -233,6 +237,7 @@ class Agent:
                 await asyncio.sleep(1)
             else:
                 log_event("info", "Buffer timed out", {})
+            log_event("info", "Final page state", {"url": state.url, "title": state.title, "buttons": state.buttons[:10], "inputs": state.inputs[:10], "filled_inputs": state.filled_inputs[:10], "visible_text": state.visible_text[:10]})
         validator_results = self._evaluate_validators(state)
         all_passed = all(v.passed for v in validator_results)
         return self._make_result(
