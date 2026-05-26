@@ -36,6 +36,7 @@ class Agent:
         self.browser = browser
         self.llm = llm
         self.headless = headless
+        self._auth_ok = False
         self._history: list[tuple[Action, str | None]] = []
         self._loop_hashes: list[str] = []
         self._step = 0
@@ -50,7 +51,7 @@ class Agent:
 
             # Authenticate via auth provider if configured
             if self.spec.auth:
-                await self._authenticate()
+                self._auth_ok = await self._authenticate()
 
             # Auto-navigate to base_url if provided
             if self.spec.base_url:
@@ -65,9 +66,9 @@ class Agent:
                         start_time=start_time,
                     )
 
-            # If auth is configured, auth already handled sign-in.
-            # Skip actions and go straight to buffer + validators.
-            if self.spec.auth:
+            # If auth succeeded, skip sign-in actions and go straight
+            # to buffer + validators.
+            if self._auth_ok:
                 state = await self.browser.extract_state()
                 return await self._finish_with_buffer(steps, state, start_time)
 
@@ -206,7 +207,7 @@ class Agent:
         finally:
             await self.browser.stop()
 
-    async def _authenticate(self) -> None:
+    async def _authenticate(self) -> bool:
         auth = self.spec.auth
         assert auth is not None
 
@@ -215,7 +216,7 @@ class Agent:
 
         if provider is None:
             log_event("warn", f"Unknown auth provider: {auth.provider}", {})
-            return
+            return False
 
         log_event("info", "Auth provider starting", {
             "provider": auth.provider,
@@ -225,8 +226,8 @@ class Agent:
         context = self.browser.context
         if context is None:
             log_event("warn", "Browser context not available for auth", {})
-            return
-        await provider.authenticate(context, domain=domain)
+            return False
+        return await provider.authenticate(context, domain=domain)
 
     def _get_base_domain(self) -> str:
         raw = self.spec.auth.credentials.get("domain", "") if self.spec.auth else ""

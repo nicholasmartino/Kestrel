@@ -7,7 +7,7 @@ from playwright.async_api import BrowserContext
 
 class AuthProvider(ABC):
     @abstractmethod
-    async def authenticate(self, context: BrowserContext, domain: str) -> None:
+    async def authenticate(self, context: BrowserContext, domain: str) -> bool:
         """Authenticate and inject session into the browser context.
 
         Implementations should use backend API credentials to create a session,
@@ -17,4 +17,7 @@ class AuthProvider(ABC):
         Args:
             context: The Playwright BrowserContext to inject credentials into.
             domain: The domain to scope cookies to (e.g. "localhost" or ".example.com").
+
+        Returns:
+            True if authentication succeeded (session injected), False otherwise.
         """
