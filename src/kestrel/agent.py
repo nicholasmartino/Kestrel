@@ -5,8 +5,11 @@ import hashlib
 import time
 from typing import Any
 
+from urllib.parse import urlparse
+
 from kestrel.types import (
     Spec,
+    AuthConfig,
     BrowserState,
     Action,
     StepResult,
@@ -17,6 +20,7 @@ from kestrel.browser import BrowserManager
 from kestrel.llm import LLMClient
 from kestrel.actions import parse_action, ActionError
 from kestrel import validators
+from kestrel.auth_providers import get_provider
 from kestrel.logging import log_event
 
 
@@ -44,6 +48,10 @@ class Agent:
         try:
             await self.browser.start()
 
+            # Authenticate via auth provider if configured
+            if self.spec.auth:
+                await self._authenticate()
+
             # Auto-navigate to base_url if provided
             if self.spec.base_url:
                 error = await self.browser.execute(
@@ -56,6 +64,12 @@ class Agent:
                         error=f"Failed to navigate to base_url: {error}",
                         start_time=start_time,
                     )
+
+            # If auth is configured, auth already handled sign-in.
+            # Skip actions and go straight to buffer + validators.
+            if self.spec.auth:
+                state = await self.browser.extract_state()
+                return await self._finish_with_buffer(steps, state, start_time)
 
             while self._step < self.spec.max_steps:
                 elapsed = time.monotonic() - start_time
@@ -191,6 +205,35 @@ class Agent:
             )
         finally:
             await self.browser.stop()
+
+    async def _authenticate(self) -> None:
+        auth = self.spec.auth
+        assert auth is not None
+
+        domain = self._get_base_domain()
+        provider = get_provider(auth)
+
+        if provider is None:
+            log_event("warn", f"Unknown auth provider: {auth.provider}", {})
+            return
+
+        log_event("info", "Auth provider starting", {
+            "provider": auth.provider,
+            "domain": domain,
+        })
+
+        context = self.browser.context
+        if context is None:
+            log_event("warn", "Browser context not available for auth", {})
+            return
+        await provider.authenticate(context, domain=domain)
+
+    def _get_base_domain(self) -> str:
+        raw = self.spec.auth.credentials.get("domain", "") if self.spec.auth else ""
+        if raw:
+            return raw
+        url = self.spec.base_url or "http://localhost"
+        return urlparse(url).hostname or "localhost"
 
     def _evaluate_validators(self, state: BrowserState) -> list[ValidatorResult]:
         results: list[ValidatorResult] = []

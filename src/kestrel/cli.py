@@ -68,16 +68,24 @@ def run(
     if base_url:
         spec.base_url = base_url
 
-    # Substitute env vars in hints and actions (e.g. ${TEST_USER_EMAIL})
+    # Substitute env vars in hints, actions, and auth credentials
     def _substitute_env(value: str) -> str:
         def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1)
             return os.environ.get(var_name, match.group(0))
 
-        return re.sub(r"\$\{(\w+)\}", replacer, value)
+        return re.sub(r"[$]\{(\w+)\}", replacer, value)
 
     spec.hints = [_substitute_env(h) for h in spec.hints]
     spec.actions = [_substitute_env(a) for a in spec.actions]
+    if spec.auth:
+        spec.auth.credentials = {
+            k: _substitute_env(v) for k, v in spec.auth.credentials.items()
+        }
+        log_event("debug", "Resolved auth credentials", {
+            "provider": spec.auth.provider,
+            "keys": list(spec.auth.credentials.keys()),
+        })
     log_event("debug", "Resolved hints", {"hints": spec.hints})
     log_event("debug", "Resolved actions", {"actions": spec.actions})
 

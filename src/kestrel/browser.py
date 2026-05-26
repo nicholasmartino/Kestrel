@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from typing import Any
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from kestrel.types import BrowserState, Action
+from kestrel.logging import log_event
 
 
 class BrowserManager:
@@ -32,6 +34,10 @@ class BrowserManager:
 
         self._page.on("console", self._on_console)
         self._page.on("requestfinished", self._on_request)
+
+    @property
+    def context(self) -> BrowserContext | None:
+        return self._context
 
     async def stop(self) -> None:
         if self._browser:

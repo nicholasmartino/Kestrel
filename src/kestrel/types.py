@@ -87,12 +87,19 @@ class AgentResult:
 
 
 @dataclass
+class AuthConfig:
+    provider: str
+    credentials: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class Spec:
     goal: str
     validators: list[dict[str, Any]]
     hints: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
     buffer: Buffer | None = None
+    auth: AuthConfig | None = None
     base_url: str = ""
     timeout_seconds: int = 60
     max_steps: int = 20
@@ -100,12 +107,15 @@ class Spec:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Spec:
         buf = data.get("buffer")
+        auth_data = data.get("auth")
+        auth = AuthConfig(**auth_data) if auth_data else None
         return cls(
             goal=data["goal"],
             validators=data.get("validators", []),
             hints=data.get("hints", []),
             actions=data.get("actions", []),
             buffer=Buffer(**buf) if buf else None,
+            auth=auth,
             base_url=data.get("base_url", ""),
             timeout_seconds=data.get("timeout_seconds", 60),
             max_steps=data.get("max_steps", 20),

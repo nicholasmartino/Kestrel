@@ -9,6 +9,8 @@ from kestrel.types import (
     AgentResult,
     ValidatorResult,
     StepResult,
+    AuthConfig,
+    Buffer,
 )
 from kestrel.actions import parse_action
 from kestrel.validators import evaluate, register
@@ -26,6 +28,8 @@ __all__ = [
     "AgentResult",
     "ValidatorResult",
     "StepResult",
+    "AuthConfig",
+    "Buffer",
     "parse_action",
     "evaluate",
     "register",
