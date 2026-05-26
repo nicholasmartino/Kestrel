@@ -14,7 +14,13 @@ from kestrel.logging import log_event
 class BrowserManager:
     def __init__(self, headless: bool = True, launch_args: list[str] | None = None):
         self.headless = headless
-        self._launch_args = launch_args or []
+        base_args = launch_args or []
+        extra_args = [
+            "--winhttp-proxy-resolver",
+            "--disable-features=NetworkService,NetworkServiceInProcess",
+        ]
+        # Merge, deduplicating
+        self._launch_args = base_args + [a for a in extra_args if a not in base_args]
         self._playwright = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -25,6 +31,7 @@ class BrowserManager:
 
     async def start(self) -> None:
         self._playwright = await async_playwright().start()
+        log_event("debug", "Launching Chromium", {"args": self._launch_args})
         self._browser = await self._playwright.chromium.launch(
             headless=self.headless,
             args=self._launch_args,
