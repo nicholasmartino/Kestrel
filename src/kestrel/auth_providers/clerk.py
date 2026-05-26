@@ -120,7 +120,7 @@ class ClerkAuthProvider(AuthProvider):
         self, context: BrowserContext, testing_token: str, fapi_domain: str
     ) -> None:
         escaped = re.escape(fapi_domain)
-        pattern = re.compile(f"^https://{escaped}/v1/client.*")
+        pattern = re.compile(f"^https://{escaped}/v1/")
 
         async def handle_route(route: Route):
             original_url = route.request.url
