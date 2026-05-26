@@ -29,7 +29,7 @@ class ClerkAuthProvider(AuthProvider):
             window.__clerk_clerkTesting = true;
         """)
 
-        sign_in_url = "http://localhost:5173/sign-in"
+        sign_in_url = "http://127.0.0.1:5173/sign-in"
         log_event("info", "Navigating to sign-in", {"url": sign_in_url})
         await page.goto(sign_in_url, wait_until="domcontentloaded")
 
