@@ -59,8 +59,7 @@ class ClerkAuthProvider(AuthProvider):
                     try {{
                         const signIn = await window.Clerk.client.signIn.create({{
                             identifier: {escaped_identifier},
-                            password: {escaped_password},
-                            strategy: "password"
+                            password: {escaped_password}
                         }});
                         if (signIn.status === 'complete') {{
                             await window.Clerk.setActive({{
