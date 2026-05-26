@@ -34,7 +34,7 @@ class ClerkAuthProvider(AuthProvider):
         await page.goto(sign_in_url, wait_until="domcontentloaded")
 
         try:
-            await page.wait_for_selector("input", timeout=15000)
+            await page.wait_for_selector("input", timeout=30000)
         except Exception:
             log_event("warn", "Sign-in form inputs did not appear", {})
             return False
