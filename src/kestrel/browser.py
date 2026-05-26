@@ -253,6 +253,38 @@ class BrowserManager:
         except Exception:
             pass
 
+        # JS shadow-DOM-piercing fallback
+        try:
+            clicked = await page.evaluate(
+                """
+                (args) => {
+                    function qsa(sel, root) {
+                        const found = Array.from(root.querySelectorAll(sel));
+                        root.querySelectorAll('*').forEach(el => {
+                            if (el.shadowRoot) found.push(...qsa(sel, el.shadowRoot));
+                        });
+                        return found;
+                    }
+                    const target = args.target.toLowerCase();
+                    const candidates = qsa('button, [role="button"], a, [onclick]', document);
+                    for (const el of candidates) {
+                        const text = (el.innerText || el.getAttribute('aria-label') || '').trim().toLowerCase();
+                        if (text && text.includes(target)) {
+                            el.focus();
+                            el.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                """,
+                {"target": target},
+            )
+            if clicked:
+                return
+        except Exception:
+            pass
+
         raise RuntimeError(f"Could not find clickable element for: {target}")
 
     async def _type_by_text_or_label(self, target: str, text: str) -> None:
@@ -324,5 +356,43 @@ class BrowserManager:
                 return
             except Exception:
                 pass
+
+        # JS shadow-DOM-piercing fallback (mirrors extract_state)
+        try:
+            filled = await page.evaluate(
+                """
+                (args) => {
+                    function qsa(sel, root) {
+                        const found = Array.from(root.querySelectorAll(sel));
+                        root.querySelectorAll('*').forEach(el => {
+                            if (el.shadowRoot) found.push(...qsa(sel, el.shadowRoot));
+                        });
+                        return found;
+                    }
+                    const target = args.target.toLowerCase();
+                    const text = args.text;
+                    const inputs = qsa('input, textarea, select, [contenteditable="true"]', document);
+                    for (const el of inputs) {
+                        const label = (el.labels?.[0]?.innerText || '').trim().toLowerCase();
+                        const name = (el.getAttribute('name') || '').toLowerCase();
+                        const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
+                        const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+                        if ((label && label.includes(target)) || (name && name.includes(target)) || (placeholder && placeholder.includes(target)) || (ariaLabel && ariaLabel.includes(target))) {
+                            el.focus();
+                            el.value = text;
+                            el.dispatchEvent(new Event('input', {bubbles: true}));
+                            el.dispatchEvent(new Event('change', {bubbles: true}));
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                """,
+                {"target": target, "text": text},
+            )
+            if filled:
+                return
+        except Exception:
+            pass
 
         raise RuntimeError(f"Could not find input element for: {target}")
