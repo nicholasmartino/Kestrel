@@ -6,7 +6,6 @@ from typing import Any
 import aiohttp
 
 from kestrel.types import BrowserState, Action
-from kestrel.actions import action_to_prompt_example
 from kestrel.logging import log_event
 
 
@@ -88,6 +87,12 @@ class LLMClient:
             "7. You may NOT mark success yourself; only the validator engine decides pass/fail.\n"
             "8. When filling forms: type each unfilled field exactly once, then click the submit button. Do not type into a field that is already filled.\n"
             "9. CRITICAL: Pay attention to 'filled inputs' — they already have content. Never type into a field listed there. If all visible inputs are filled, click the submit button.\n\n"
+            "JSON FORMAT:\n"
+            '- click:   {"action": "click", "target": "button text"}\n'
+            '- type:    {"action": "type", "target": "field label", "text": "value"}\n'
+            '- goto:    {"action": "goto", "url": "http://..."}\n'
+            '- wait:    {"action": "wait"}\n'
+            '- done:    {"action": "done"}\n'
         )
 
     def _build_prompt(

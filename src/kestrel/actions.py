@@ -28,5 +28,4 @@ def parse_action(raw: str) -> Action:
     return Action(action=action_type, target=target, text=text, url=url)
 
 
-def action_to_prompt_example(action: Action) -> str:
-    return json.dumps(action.to_dict())
+
