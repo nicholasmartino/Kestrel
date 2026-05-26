@@ -11,7 +11,7 @@ class ActionError(Exception):
 
 
 def parse_action(raw: str) -> Action:
-    """Parse and validate a JSON action from the LLM."""
+    """Parse JSON action from the LLM, leniently mapping common key aliases."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -20,27 +20,12 @@ def parse_action(raw: str) -> Action:
     if not isinstance(data, dict):
         raise ActionError("Action must be a JSON object")
 
-    action_type = data.get("action")
-    if action_type not in ("goto", "click", "type", "wait", "done"):
-        raise ActionError(f"Unsupported action: {action_type}")
-
-    target = data.get("target")
+    action_type = data.get("action") or data.get("type") or "wait"
+    target = data.get("target") or data.get("element")
     text = data.get("text")
     url = data.get("url")
 
-    if action_type == "goto" and not url:
-        raise ActionError("goto action requires 'url'")
-    if action_type in ("click", "type") and not target:
-        raise ActionError(f"{action_type} action requires 'target'")
-    if action_type == "type" and text is None:
-        raise ActionError("type action requires 'text'")
-
-    return Action(
-        action=action_type,
-        target=target,
-        text=text,
-        url=url,
-    )
+    return Action(action=action_type, target=target, text=text, url=url)
 
 
 def action_to_prompt_example(action: Action) -> str:

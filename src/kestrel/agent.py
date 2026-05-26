@@ -166,10 +166,9 @@ class Agent:
                         continue
                     return await self._finish_with_buffer(steps, step_result.state_after or state, start_time)
 
-                # Advance action index if LLM's action type matches the task prefix
-                if current_action and self._should_advance(current_action, action):
+                # Advance action index after each successful action
+                if current_action:
                     self._action_index += 1
-                    log_event("debug", "Action advanced", {"index": self._action_index, "next": self.spec.actions[self._action_index] if self._action_index < len(self.spec.actions) else None})
 
             # Max steps reached
             final_state = await self.browser.extract_state()
@@ -214,12 +213,6 @@ class Agent:
                 if recent.count(candidate) >= 3:
                     return True
         return False
-
-    def _should_advance(self, task_text: str, llm_action: Action) -> bool:
-        prefix = task_text.strip().split(maxsplit=1)[0] if task_text else ""
-        if prefix in ("type", "click", "navigate"):
-            return llm_action.action == prefix
-        return True
 
     async def _finish_with_buffer(
         self,

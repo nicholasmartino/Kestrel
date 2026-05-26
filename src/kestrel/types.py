@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 
 @dataclass
@@ -12,7 +12,7 @@ class Buffer:
 
 @dataclass(frozen=True)
 class Action:
-    action: Literal["goto", "click", "type", "wait", "done"]
+    action: str
     target: str | None = None
     text: str | None = None
     url: str | None = None
