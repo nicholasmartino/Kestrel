@@ -79,13 +79,7 @@ class LLMClient:
             "7. You may NOT mark success yourself; only the validator engine decides pass/fail.\n"
             "8. When filling forms: type each unfilled field exactly once, then click the submit button. Do not type into a field that is already filled.\n"
             "9. CRITICAL: Pay attention to 'filled inputs' — they already have content. Never type into a field listed there. If all visible inputs are filled, click the submit button.\n"
-            "10. Follow the ACTIONS section below step by step. After completing all actions, respond with {\"action\": \"done\"}.\n\n"
-            "Supported actions:\n"
-            f"- Navigate: {action_to_prompt_example(Action('goto', url='http://localhost:5173'))}\n"
-            f"- Click: {action_to_prompt_example(Action('click', target='Submit'))}\n"
-            f"- Type: {action_to_prompt_example(Action('type', target='Email', text='user@example.com'))}\n"
-            f"- Wait: {action_to_prompt_example(Action('wait'))}\n"
-            f"- Done: {action_to_prompt_example(Action('done'))}\n"
+            '10. Follow the ACTIONS section below step by step. After completing all actions, respond with {"action": "done"}.\n\n'
         )
 
     def _build_prompt(
@@ -121,7 +115,9 @@ class LLMClient:
         if state.buttons:
             lines.append(f"  Buttons: {state.buttons[:15]}")
         if state.filled_inputs:
-            lines.append(f"  Filled inputs (do NOT type into these): {state.filled_inputs[:15]}")
+            lines.append(
+                f"  Filled inputs (do NOT type into these): {state.filled_inputs[:15]}"
+            )
         unfilled = [i for i in state.inputs if i not in state.filled_inputs]
         if unfilled:
             lines.append(f"  Inputs (needs typing): {unfilled[:15]}")
