@@ -54,7 +54,7 @@ class ClerkAuthProvider(AuthProvider):
         escaped_identifier = json.dumps(self.identifier)
         escaped_password = json.dumps(self.password)
         try:
-            success = await page.evaluate(f"""
+            result = await page.evaluate(f"""
                 (async () => {{
                     try {{
                         const signIn = await window.Clerk.client.signIn.create({{
@@ -66,21 +66,25 @@ class ClerkAuthProvider(AuthProvider):
                             await window.Clerk.setActive({{
                                 session: signIn.createdSessionId
                             }});
-                            return true;
+                            return {{ ok: true }};
                         }}
-                        return false;
+                        return {{ ok: false, status: signIn.status, sessionId: signIn.createdSessionId || null }};
                     }} catch (e) {{
-                        console.error('Clerk password sign-in failed:', e);
-                        return false;
+                        const msg = e?.errors?.[0]?.message || e?.message || String(e);
+                        return {{ ok: false, error: msg }};
                     }}
                 }})()
             """)
         except Exception as e:
-            log_event("warn", "Clerk password sign-in failed", {"error": str(e)})
+            log_event("warn", "Clerk password sign-in evaluate failed", {"error": str(e)})
             return False
 
-        if not success:
-            log_event("warn", "Clerk password sign-in did not complete", {})
+        if not result.get("ok"):
+            log_event("warn", "Clerk password sign-in did not complete", {
+                "status": result.get("status"),
+                "error": result.get("error"),
+                "sessionId": result.get("sessionId"),
+            })
             return False
 
         try:
@@ -121,6 +125,7 @@ class ClerkAuthProvider(AuthProvider):
 
         async def handle_route(route: Route):
             original_url = route.request.url
+            log_event("debug", "Intercepting FAPI request", {"url": original_url})
             delimiter = "&" if "?" in original_url else "?"
             new_url = f"{original_url}{delimiter}__clerk_testing_token={testing_token}"
 
@@ -139,7 +144,8 @@ class ClerkAuthProvider(AuthProvider):
                     ):
                         body["client"]["captcha_bypass"] = True
                 await route.fulfill(response=response, json=body)
-            except Exception:
+            except Exception as e:
+                log_event("warn", "FAPI interception fetch failed", {"error": str(e), "url": original_url})
                 await route.continue_()
 
         await context.route(pattern, handle_route)
