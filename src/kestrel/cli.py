@@ -68,7 +68,7 @@ def run(
     if base_url:
         spec.base_url = base_url
 
-    # Substitute env vars in hints (e.g. ${TEST_USER_EMAIL})
+    # Substitute env vars in hints and actions (e.g. ${TEST_USER_EMAIL})
     def _substitute_env(value: str) -> str:
         def replacer(match: re.Match[str]) -> str:
             var_name = match.group(1)
@@ -77,7 +77,9 @@ def run(
         return re.sub(r"\$\{(\w+)\}", replacer, value)
 
     spec.hints = [_substitute_env(h) for h in spec.hints]
+    spec.actions = [_substitute_env(a) for a in spec.actions]
     log_event("debug", "Resolved hints", {"hints": spec.hints})
+    log_event("debug", "Resolved actions", {"actions": spec.actions})
 
     async def _run() -> int:
         # Ensure Ollama

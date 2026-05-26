@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
+@dataclass
+class Buffer:
+    timeout: float = 30.0
+    until: dict | None = None
+
+
 @dataclass(frozen=True)
 class Action:
     action: Literal["goto", "click", "type", "wait", "done"]
@@ -85,16 +91,21 @@ class Spec:
     goal: str
     validators: list[dict[str, Any]]
     hints: list[str] = field(default_factory=list)
+    actions: list[str] = field(default_factory=list)
+    buffer: Buffer | None = None
     base_url: str = ""
     timeout_seconds: int = 60
     max_steps: int = 20
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Spec:
+        buf = data.get("buffer")
         return cls(
             goal=data["goal"],
             validators=data.get("validators", []),
             hints=data.get("hints", []),
+            actions=data.get("actions", []),
+            buffer=Buffer(**buf) if buf else None,
             base_url=data.get("base_url", ""),
             timeout_seconds=data.get("timeout_seconds", 60),
             max_steps=data.get("max_steps", 20),

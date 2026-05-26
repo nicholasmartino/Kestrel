@@ -16,6 +16,7 @@ from kestrel.browser import BrowserManager
 from kestrel.llm import LLMClient
 from kestrel.actions import parse_action, ActionError
 from kestrel import validators
+from kestrel.logging import log_event
 
 
 class Agent:
@@ -107,6 +108,7 @@ class Agent:
                     goal=self.spec.goal,
                     validators=self.spec.validators,
                     hints=self.spec.hints,
+                    actions=self.spec.actions,
                     history=self._history,
                 )
 
@@ -144,6 +146,20 @@ class Agent:
                 self._step += 1
 
                 if action.action == "done":
+                    # Run buffer if configured
+                    if self.spec.buffer:
+                        log_event("info", "Buffer started", {"timeout": self.spec.buffer.timeout, "until": self.spec.buffer.until})
+                        deadline = time.monotonic() + self.spec.buffer.timeout
+                        while time.monotonic() < deadline:
+                            buf_state = await self.browser.extract_state()
+                            if self.spec.buffer.until:
+                                result = validators.evaluate(buf_state, self.spec.buffer.until)
+                                if result.passed:
+                                    log_event("info", "Buffer condition met", {"detail": result.detail})
+                                    break
+                            await asyncio.sleep(1)
+                        else:
+                            log_event("info", "Buffer timed out", {})
                     # Evaluate validators one last time
                     final_state = step_result.state_after or state
                     validator_results = self._evaluate_validators(final_state)
