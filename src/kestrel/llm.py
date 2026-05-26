@@ -29,9 +29,18 @@ class LLMClient:
         hints: list[str],
         actions: list[str],
         history: list[tuple[Action, str | None]],
+        current_action: str | None = None,
     ) -> str:
         """Send state to LLM and return raw JSON string."""
-        prompt = self._build_prompt(state, goal, validators, hints, actions, history)
+        prompt = self._build_prompt(
+            state,
+            goal,
+            validators,
+            hints,
+            actions,
+            history,
+            current_action=current_action,
+        )
         payload = {
             "model": self.model,
             "messages": [
@@ -78,8 +87,7 @@ class LLMClient:
             "6. Avoid unnecessary navigation.\n"
             "7. You may NOT mark success yourself; only the validator engine decides pass/fail.\n"
             "8. When filling forms: type each unfilled field exactly once, then click the submit button. Do not type into a field that is already filled.\n"
-            "9. CRITICAL: Pay attention to 'filled inputs' — they already have content. Never type into a field listed there. If all visible inputs are filled, click the submit button.\n"
-            '10. Follow the ACTIONS section below step by step. After completing all actions, respond with {"action": "done"}.\n\n'
+            "9. CRITICAL: Pay attention to 'filled inputs' — they already have content. Never type into a field listed there. If all visible inputs are filled, click the submit button.\n\n"
         )
 
     def _build_prompt(
@@ -90,8 +98,14 @@ class LLMClient:
         hints: list[str],
         actions: list[str],
         history: list[tuple[Action, str | None]],
+        current_action: str | None = None,
     ) -> str:
         lines: list[str] = []
+        if current_action:
+            lines.append("=== YOUR TASK ===")
+            lines.append(current_action)
+            lines.append("=== END TASK ===")
+            lines.append("")
         lines.append(f"GOAL: {goal}")
         lines.append("")
         lines.append("VALIDATORS:")
@@ -102,11 +116,6 @@ class LLMClient:
             lines.append("HINTS:")
             for h in hints:
                 lines.append(f"  - {h}")
-            lines.append("")
-        if actions:
-            lines.append("ACTIONS:")
-            for a in actions:
-                lines.append(f"  - {a}")
             lines.append("")
 
         lines.append("CURRENT STATE:")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 from typing import Any
@@ -34,6 +35,7 @@ class Agent:
         self._history: list[tuple[Action, str | None]] = []
         self._loop_hashes: list[str] = []
         self._step = 0
+        self._action_index = 0
 
     async def run(self) -> AgentResult:
         start_time = time.monotonic()
@@ -102,6 +104,18 @@ class Agent:
                         start_time=start_time,
                     )
 
+                # Determine current action (progressive disclosure)
+                has_actions = bool(self.spec.actions)
+                current_action = (
+                    self.spec.actions[self._action_index]
+                    if has_actions and self._action_index < len(self.spec.actions)
+                    else None
+                )
+
+                # All actions consumed → buffer → validators
+                if current_action is None and has_actions:
+                    return await self._finish_with_buffer(steps, state, start_time)
+
                 # Get next action from LLM
                 raw_action = await self.llm.decide(
                     state=state,
@@ -110,6 +124,7 @@ class Agent:
                     hints=self.spec.hints,
                     actions=self.spec.actions,
                     history=self._history,
+                    current_action=current_action,
                 )
 
                 try:
@@ -146,31 +161,15 @@ class Agent:
                 self._step += 1
 
                 if action.action == "done":
-                    # Run buffer if configured
-                    if self.spec.buffer:
-                        log_event("info", "Buffer started", {"timeout": self.spec.buffer.timeout, "until": self.spec.buffer.until})
-                        deadline = time.monotonic() + self.spec.buffer.timeout
-                        while time.monotonic() < deadline:
-                            buf_state = await self.browser.extract_state()
-                            if self.spec.buffer.until:
-                                result = validators.evaluate(buf_state, self.spec.buffer.until)
-                                if result.passed:
-                                    log_event("info", "Buffer condition met", {"detail": result.detail})
-                                    break
-                            await asyncio.sleep(1)
-                        else:
-                            log_event("info", "Buffer timed out", {})
-                    # Evaluate validators one last time
-                    final_state = step_result.state_after or state
-                    validator_results = self._evaluate_validators(final_state)
-                    all_passed = all(v.passed for v in validator_results)
-                    return self._make_result(
-                        steps,
-                        passed=all_passed,
-                        validators=validator_results,
-                        start_time=start_time,
-                        error=None if all_passed else "Validators failed after done",
-                    )
+                    if current_action:
+                        log_event("warn", "Premature done, re-prompting", {"pending_action": current_action})
+                        continue
+                    return await self._finish_with_buffer(steps, step_result.state_after or state, start_time)
+
+                # Advance action index if LLM's action type matches the task prefix
+                if current_action and self._should_advance(current_action, action):
+                    self._action_index += 1
+                    log_event("debug", "Action advanced", {"index": self._action_index, "next": self.spec.actions[self._action_index] if self._action_index < len(self.spec.actions) else None})
 
             # Max steps reached
             final_state = await self.browser.extract_state()
@@ -215,6 +214,41 @@ class Agent:
                 if recent.count(candidate) >= 3:
                     return True
         return False
+
+    def _should_advance(self, task_text: str, llm_action: Action) -> bool:
+        prefix = task_text.strip().split(maxsplit=1)[0] if task_text else ""
+        if prefix in ("type", "click", "navigate"):
+            return llm_action.action == prefix
+        return True
+
+    async def _finish_with_buffer(
+        self,
+        steps: list[StepResult],
+        state: BrowserState,
+        start_time: float,
+    ) -> AgentResult:
+        if self.spec.buffer:
+            log_event("info", "Buffer started", {"timeout": self.spec.buffer.timeout, "until": self.spec.buffer.until})
+            deadline = time.monotonic() + self.spec.buffer.timeout
+            while time.monotonic() < deadline:
+                state = await self.browser.extract_state()
+                if self.spec.buffer.until:
+                    result = validators.evaluate(state, self.spec.buffer.until)
+                    if result.passed:
+                        log_event("info", "Buffer condition met", {"detail": result.detail})
+                        break
+                await asyncio.sleep(1)
+            else:
+                log_event("info", "Buffer timed out", {})
+        validator_results = self._evaluate_validators(state)
+        all_passed = all(v.passed for v in validator_results)
+        return self._make_result(
+            steps,
+            passed=all_passed,
+            validators=validator_results,
+            start_time=start_time,
+            error=None if all_passed else "Validators failed",
+        )
 
     def _make_result(
         self,
