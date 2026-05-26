@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import base64
+import json
+import os
+import re
+
 import aiohttp
-from playwright.async_api import BrowserContext, Page
+from playwright.async_api import BrowserContext, Page, Route
 
 from kestrel.auth_providers.base import AuthProvider
 from kestrel.logging import log_event
@@ -20,38 +25,184 @@ class ClerkAuthProvider(AuthProvider):
             log_event("warn", "Clerk secret key not set, skipping auth", {})
             return False
 
-        token = await self._generate_testing_token()
-        if not token:
+        testing_token = await self._generate_testing_token()
+        if not testing_token:
             return False
 
-        await context.add_init_script(f"""
-            window.__clerk_testing_token = '{token}';
-            window.__clerk_clerkTesting = true;
-        """)
-
-        sign_in_url = "http://127.0.0.1:5173/sign-in"
-        log_event("info", "Navigating to sign-in", {"url": sign_in_url})
-        await page.goto(sign_in_url, wait_until="domcontentloaded")
-
-        try:
-            await page.wait_for_selector("input", timeout=30000)
-        except Exception:
-            log_event("warn", "Sign-in form inputs did not appear", {})
+        publishable_key = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
+        fapi_domain = self._parse_frontend_api_domain(publishable_key)
+        if not fapi_domain:
+            log_event("warn", "Could not determine Clerk Frontend API domain from publishable key", {})
             return False
 
-        await self._fill_field(page, "Email address", self.identifier)
-        await self._fill_field(page, "Password", self.password)
-        await self._click_continue(page)
+        log_event("info", "Setting up Clerk Frontend API interception", {
+            "fapi_domain": fapi_domain,
+        })
+        await self._setup_fapi_interception(context, testing_token, fapi_domain)
+
+        await page.goto("http://localhost:5173/", wait_until="domcontentloaded")
 
         try:
-            await page.wait_for_url(
-                lambda url: "/sign-in" not in url, timeout=15000
+            await page.wait_for_function(
+                "window.Clerk && window.Clerk.client && window.Clerk.client.signIn",
+                timeout=15000,
             )
-            log_event("info", "Redirected away from sign-in", {"url": page.url})
-            return True
         except Exception:
-            log_event("warn", "Did not redirect from sign-in", {"url": page.url})
+            log_event("warn", "Clerk JS did not load in time", {})
             return False
+
+        sign_in_token = await self._create_sign_in_token()
+        if not sign_in_token:
+            return False
+
+        escaped_ticket = json.dumps(sign_in_token)
+        try:
+            success = await page.evaluate(f"""
+                (async () => {{
+                    try {{
+                        const signIn = await window.Clerk.client.signIn.create({{
+                            strategy: "ticket",
+                            ticket: {escaped_ticket}
+                        }});
+                        if (signIn.status === 'complete') {{
+                            await window.Clerk.setActive({{
+                                session: signIn.createdSessionId
+                            }});
+                            return true;
+                        }}
+                        return false;
+                    }} catch (e) {{
+                        console.error('Clerk ticket sign-in failed:', e);
+                        return false;
+                    }}
+                }})()
+            """)
+        except Exception as e:
+            log_event("warn", "Clerk ticket sign-in failed", {"error": str(e)})
+            return False
+
+        if not success:
+            log_event("warn", "Clerk ticket sign-in did not complete", {})
+            return False
+
+        try:
+            await page.wait_for_function(
+                "window.Clerk?.user !== null && window.Clerk?.user !== undefined",
+                timeout=10000,
+            )
+        except Exception:
+            log_event("warn", "Clerk did not report authenticated user", {})
+            return False
+
+        log_event("info", "Authenticated via Clerk sign-in token", {})
+        return True
+
+    def _parse_frontend_api_domain(self, publishable_key: str) -> str | None:
+        if not publishable_key:
+            return None
+        for prefix in ("pk_test_", "pk_live_"):
+            if publishable_key.startswith(prefix):
+                key = publishable_key[len(prefix):]
+                break
+        else:
+            return None
+        try:
+            padding = 4 - len(key) % 4
+            if padding != 4:
+                key += "=" * padding
+            decoded = base64.b64decode(key).decode("utf-8")
+            return decoded.rstrip("$")
+        except Exception:
+            return None
+
+    async def _setup_fapi_interception(
+        self, context: BrowserContext, testing_token: str, fapi_domain: str
+    ) -> None:
+        escaped = re.escape(fapi_domain)
+        pattern = re.compile(f"^https://{escaped}/v1/client.*")
+
+        async def handle_route(route: Route):
+            original_url = route.request.url
+            delimiter = "&" if "?" in original_url else "?"
+            new_url = f"{original_url}{delimiter}__clerk_testing_token={testing_token}"
+
+            try:
+                response = await route.fetch(url=new_url)
+                body = await response.json()
+                if isinstance(body, dict):
+                    if (
+                        isinstance(body.get("response"), dict)
+                        and body["response"].get("captcha_bypass") is False
+                    ):
+                        body["response"]["captcha_bypass"] = True
+                    if (
+                        isinstance(body.get("client"), dict)
+                        and body["client"].get("captcha_bypass") is False
+                    ):
+                        body["client"]["captcha_bypass"] = True
+                await route.fulfill(response=response, json=body)
+            except Exception:
+                await route.continue_()
+
+        await context.route(pattern, handle_route)
+
+    async def _create_sign_in_token(self) -> str | None:
+        async with aiohttp.ClientSession(
+            headers={
+                "Authorization": f"Bearer {self.secret_key}",
+                "Content-Type": "application/json",
+            }
+        ) as session:
+            log_event("info", "Looking up Clerk user", {
+                "identifier": self.identifier,
+            })
+            resp = await session.get(
+                f"{API_BASE}/users",
+                params={"email_address": [self.identifier]},
+            )
+            users_data = await resp.json()
+
+            if resp.status != 200:
+                log_event("warn", "Clerk user lookup failed", {
+                    "status": resp.status,
+                    "response": users_data,
+                })
+                return None
+
+            users = users_data.get("data", []) if isinstance(users_data, dict) else []
+            if not users:
+                log_event("warn", "No Clerk user found for email", {
+                    "identifier": self.identifier,
+                })
+                return None
+
+            user_id = users[0].get("id")
+            log_event("info", "Clerk user found", {"user_id": user_id})
+
+            log_event("info", "Creating Clerk sign-in token", {})
+            token_resp = await session.post(
+                f"{API_BASE}/sign_in_tokens",
+                json={
+                    "user_id": user_id,
+                    "expires_in_seconds": 300,
+                },
+            )
+            token_data = await token_resp.json()
+
+            if token_resp.status != 200:
+                log_event("warn", "Clerk sign-in token creation failed", {
+                    "status": token_resp.status,
+                    "response": token_data,
+                })
+                return None
+
+            token = token_data.get("token") if isinstance(token_data, dict) else None
+            if not token:
+                log_event("warn", "No token in Clerk sign-in token response", {})
+                return None
+
+            log_event("info", "Clerk sign-in token created", {})
+            return token
 
     async def _generate_testing_token(self) -> str | None:
         async with aiohttp.ClientSession(
@@ -78,34 +229,3 @@ class ClerkAuthProvider(AuthProvider):
 
             log_event("info", "Clerk testing token generated", {})
             return token
-
-    async def _fill_field(self, page: Page, label: str, value: str) -> None:
-        try:
-            await page.get_by_label(label, exact=False).first.fill(value, timeout=3000)
-            return
-        except Exception:
-            pass
-        try:
-            await page.get_by_placeholder(label, exact=False).first.fill(value, timeout=3000)
-            return
-        except Exception:
-            pass
-        try:
-            locator = page.locator(f"input[name='{label.lower()}']")
-            await locator.first.fill(value, timeout=3000)
-        except Exception:
-            log_event("warn", f"Could not fill field: {label}", {})
-
-    async def _click_continue(self, page: Page) -> None:
-        for text in ("Continue", "Sign in", "Sign In", "Log in", "Submit"):
-            try:
-                await page.get_by_role("button", name=text, exact=False).first.click(timeout=3000)
-                return
-            except Exception:
-                continue
-        try:
-            await page.get_by_text("Continue", exact=False).first.click(timeout=3000, force=True)
-            return
-        except Exception:
-            pass
-        log_event("warn", "Could not find submit button", {})

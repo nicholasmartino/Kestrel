@@ -8,10 +8,12 @@ from playwright.async_api import BrowserContext, Page
 class AuthProvider(ABC):
     @abstractmethod
     async def authenticate(self, context: BrowserContext, page: Page) -> bool:
-        """Authenticate the user in the browser.
+        """Authenticate the user in the browser without form interaction.
 
-        Implementations should navigate to the sign-in page, fill credentials,
-        and submit. The user should end up on an authenticated page.
+        Implementations should use backend API calls to create a session,
+        then inject the session into the browser context via Clerk's
+        Frontend JS API (page.evaluate). No navigation to sign-in page
+        or form fill is needed — the user appears authenticated on load.
 
         Args:
             context: The Playwright BrowserContext.
