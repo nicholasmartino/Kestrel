@@ -67,7 +67,10 @@ class ClerkAuthProvider(AuthProvider):
                             }});
                             return {{ ok: true }};
                         }}
-                        return {{ ok: false, status: signIn.status, sessionId: signIn.createdSessionId || null }};
+                        const factors = signIn.supportedSecondFactors
+                            ? signIn.supportedSecondFactors.map(f => f.strategy)
+                            : [];
+                        return {{ ok: false, status: signIn.status, sessionId: signIn.createdSessionId || null, secondFactors: factors }};
                     }} catch (e) {{
                         const msg = e?.errors?.[0]?.message || e?.message || String(e);
                         return {{ ok: false, error: msg }};
@@ -83,6 +86,7 @@ class ClerkAuthProvider(AuthProvider):
                 "status": result.get("status"),
                 "error": result.get("error"),
                 "sessionId": result.get("sessionId"),
+                "secondFactors": result.get("secondFactors"),
             })
             return False
 
