@@ -94,16 +94,6 @@ class Agent:
                             start_time=start_time,
                         )
 
-                # Check for loops
-                loop_detected = self._detect_loop(state)
-                if loop_detected:
-                    return self._make_result(
-                        steps,
-                        passed=False,
-                        error="Loop detected",
-                        start_time=start_time,
-                    )
-
                 # Determine current action (progressive disclosure)
                 has_actions = bool(self.spec.actions)
                 current_action = (
@@ -115,6 +105,16 @@ class Agent:
                 # All actions consumed → buffer → validators
                 if current_action is None and has_actions:
                     return await self._finish_with_buffer(steps, state, start_time)
+
+                # Check for loops
+                loop_detected = self._detect_loop(state)
+                if loop_detected:
+                    return self._make_result(
+                        steps,
+                        passed=False,
+                        error="Loop detected",
+                        start_time=start_time,
+                    )
 
                 # Get next action from LLM
                 raw_action = await self.llm.decide(
