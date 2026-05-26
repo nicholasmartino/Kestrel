@@ -48,7 +48,7 @@ class ClerkAuthProvider(AuthProvider):
 
         resp = await session.get(
             f"{API_BASE}/users",
-            params={"email_address": [self.identifier]},
+            params={"email_address": self.identifier},
         )
         data = await resp.json()
 
@@ -59,7 +59,7 @@ class ClerkAuthProvider(AuthProvider):
             })
             return None
 
-        users = data.get("data", [])
+        users = data if isinstance(data, list) else data.get("data", [])
         if not users:
             log_event("warn", "No Clerk user found for email", {
                 "identifier": self.identifier,
