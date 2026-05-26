@@ -39,6 +39,10 @@ class BrowserManager:
     def context(self) -> BrowserContext | None:
         return self._context
 
+    @property
+    def page(self) -> Page | None:
+        return self._page
+
     async def stop(self) -> None:
         if self._browser:
             await self._browser.close()

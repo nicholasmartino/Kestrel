@@ -2,22 +2,21 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from playwright.async_api import BrowserContext
+from playwright.async_api import BrowserContext, Page
 
 
 class AuthProvider(ABC):
     @abstractmethod
-    async def authenticate(self, context: BrowserContext, domain: str) -> bool:
-        """Authenticate and inject session into the browser context.
+    async def authenticate(self, context: BrowserContext, page: Page) -> bool:
+        """Authenticate the user in the browser.
 
-        Implementations should use backend API credentials to create a session,
-        then inject cookies/localStorage into the Playwright context so the
-        user appears authenticated before any page loads.
+        Implementations should navigate to the sign-in page, fill credentials,
+        and submit. The user should end up on an authenticated page.
 
         Args:
-            context: The Playwright BrowserContext to inject credentials into.
-            domain: The domain to scope cookies to (e.g. "localhost" or ".example.com").
+            context: The Playwright BrowserContext.
+            page: The Playwright Page to interact with.
 
         Returns:
-            True if authentication succeeded (session injected), False otherwise.
+            True if authentication succeeded, False otherwise.
         """

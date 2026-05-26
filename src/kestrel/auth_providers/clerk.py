@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import aiohttp
-from playwright.async_api import BrowserContext
+from playwright.async_api import BrowserContext, Page
 
 from kestrel.auth_providers.base import AuthProvider
 from kestrel.logging import log_event
@@ -15,145 +15,97 @@ class ClerkAuthProvider(AuthProvider):
         self.identifier = identifier
         self.password = password
 
-    async def authenticate(self, context: BrowserContext, domain: str) -> bool:
+    async def authenticate(self, context: BrowserContext, page: Page) -> bool:
         if not self.secret_key:
             log_event("warn", "Clerk secret key not set, skipping auth", {})
             return False
 
+        token = await self._generate_testing_token()
+        if not token:
+            return False
+
+        await context.add_init_script(f"""
+            window.__clerk_testing_token = '{token}';
+            window.__clerk_clerkTesting = true;
+        """)
+
+        sign_in_url = "http://localhost:5173/sign-in"
+        log_event("info", "Navigating to sign-in", {"url": sign_in_url})
+        await page.goto(sign_in_url, wait_until="domcontentloaded")
+
+        try:
+            await page.wait_for_selector("input", timeout=15000)
+        except Exception:
+            log_event("warn", "Sign-in form inputs did not appear", {})
+            return False
+
+        await self._fill_field(page, "Email address", self.identifier)
+        await self._fill_field(page, "Password", self.password)
+        await self._click_continue(page)
+
+        try:
+            await page.wait_for_url(
+                lambda url: "/sign-in" not in url, timeout=15000
+            )
+            log_event("info", "Redirected away from sign-in", {"url": page.url})
+            return True
+        except Exception:
+            log_event("warn", "Did not redirect from sign-in", {"url": page.url})
+            return False
+
+    async def _generate_testing_token(self) -> str | None:
         async with aiohttp.ClientSession(
             headers={
                 "Authorization": f"Bearer {self.secret_key}",
                 "Content-Type": "application/json",
             }
         ) as session:
-            user_id = await self._lookup_user(session)
-            if not user_id:
-                return False
-
-            sess_id = await self._create_session(session, user_id)
-            if not sess_id:
-                return False
-
-            jwt = await self._fetch_token(session, sess_id)
-            if not jwt:
-                return False
-
-            await self._inject_cookie(context, domain, jwt)
-            return True
-
-    async def _lookup_user(self, session: aiohttp.ClientSession) -> str | None:
-        log_event("info", "Looking up Clerk user", {
-            "identifier": self.identifier,
-        })
-
-        resp = await session.get(
-            f"{API_BASE}/users",
-            params={"email_address": self.identifier},
-        )
-        data = await resp.json()
-
-        if resp.status != 200:
-            log_event("warn", "Clerk user lookup failed", {
-                "status": resp.status,
-                "response": data,
-            })
-            return None
-
-        users = data if isinstance(data, list) else data.get("data", [])
-        if not users:
-            log_event("warn", "No Clerk user found for email", {
-                "identifier": self.identifier,
-            })
-            return None
-
-        user_id = users[0].get("id")
-        log_event("info", "Clerk user found", {
-            "user_id": user_id,
-        })
-        return user_id
-
-    async def _create_session(
-        self, session: aiohttp.ClientSession, user_id: str
-    ) -> str | None:
-        log_event("info", "Creating Clerk session via Backend API", {
-            "user_id": user_id,
-        })
-
-        resp = await session.post(
-            f"{API_BASE}/sessions",
-            json={"user_id": user_id},
-        )
-
-        if resp.status == 404:
-            log_event("error", (
-                "Clerk Backend API session creation returned 404. "
-                "This endpoint may not be enabled for this instance. "
-                "Disable Client Trust in Clerk Dashboard (Settings > Updates) "
-                "to allow sign-ins from test browsers."
-            ), {})
-            return None
-
-        if resp.status != 200:
+            log_event("info", "Generating Clerk testing token", {})
+            resp = await session.post(f"{API_BASE}/testing_tokens")
             data = await resp.json()
-            log_event("warn", "Clerk session creation failed", {
-                "status": resp.status,
-                "response": data,
-            })
-            return None
 
-        data = await resp.json()
-        sess_id = data.get("id")
-        if not sess_id:
-            log_event("warn", "No session ID in Clerk response", {})
-            return None
+            if resp.status != 200:
+                log_event("warn", "Testing token generation failed", {
+                    "status": resp.status,
+                    "response": data,
+                })
+                return None
 
-        log_event("info", "Clerk session created", {
-            "session_id": sess_id,
-        })
-        return sess_id
+            token = data.get("token") if isinstance(data, dict) else None
+            if not token:
+                log_event("warn", "No token in testing token response", {})
+                return None
 
-    async def _fetch_token(
-        self, session: aiohttp.ClientSession, sess_id: str
-    ) -> str | None:
-        log_event("info", "Fetching Clerk session token", {
-            "session_id": sess_id,
-        })
+            log_event("info", "Clerk testing token generated", {})
+            return token
 
-        resp = await session.post(
-            f"{API_BASE}/sessions/{sess_id}/tokens",
-        )
-        data = await resp.json()
+    async def _fill_field(self, page: Page, label: str, value: str) -> None:
+        try:
+            await page.get_by_label(label, exact=False).first.fill(value, timeout=3000)
+            return
+        except Exception:
+            pass
+        try:
+            await page.get_by_placeholder(label, exact=False).first.fill(value, timeout=3000)
+            return
+        except Exception:
+            pass
+        try:
+            locator = page.locator(f"input[name='{label.lower()}']")
+            await locator.first.fill(value, timeout=3000)
+        except Exception:
+            log_event("warn", f"Could not fill field: {label}", {})
 
-        if resp.status != 200:
-            log_event("warn", "Clerk token fetch failed", {
-                "status": resp.status,
-                "response": data,
-            })
-            return None
-
-        jwt = data.get("jwt")
-        if not jwt:
-            log_event("warn", "No JWT in Clerk token response", {})
-            return None
-
-        return jwt
-
-    async def _inject_cookie(
-        self, context: BrowserContext, domain: str, jwt: str
-    ) -> None:
-        cookie_domain = domain if domain.startswith(".") else domain
-        await context.add_cookies([
-            {
-                "name": "__session",
-                "value": jwt,
-                "domain": cookie_domain,
-                "path": "/",
-                "httpOnly": True,
-                "secure": domain not in ("localhost", "127.0.0.1"),
-                "sameSite": "Lax",
-            },
-        ])
-
-        log_event("info", "Clerk session cookie injected", {
-            "domain": cookie_domain,
-        })
+    async def _click_continue(self, page: Page) -> None:
+        for text in ("Continue", "Sign in", "Sign In", "Log in", "Submit"):
+            try:
+                await page.get_by_role("button", name=text, exact=False).first.click(timeout=3000)
+                return
+            except Exception:
+                continue
+        try:
+            await page.get_by_text("Continue", exact=False).first.click(timeout=3000, force=True)
+            return
+        except Exception:
+            pass
+        log_event("warn", "Could not find submit button", {})
