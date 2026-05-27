@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import time
 from typing import Any
 
@@ -201,7 +202,6 @@ class Agent:
                 log_event("info", "Running teardown", {"actions": len(self.spec.teardown)})
                 for t in self.spec.teardown:
                     try:
-                        import json
                         action = parse_action(json.dumps(t))
                         await self.browser.execute(action)
                         await asyncio.sleep(0.5)
