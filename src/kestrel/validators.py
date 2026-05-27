@@ -59,6 +59,18 @@ def _text_visible(state: BrowserState, arg: Any) -> ValidatorResult:
     )
 
 
+@register("button_visible")
+def _button_visible(state: BrowserState, arg: Any) -> ValidatorResult:
+    needle = str(arg).lower()
+    all_buttons = " ".join(state.buttons).lower()
+    passed = needle in all_buttons
+    return ValidatorResult(
+        name=f"button_visible:{arg}",
+        passed=passed,
+        detail=f"Button '{arg}' {'is' if passed else 'is not'} visible",
+    )
+
+
 @register("no_console_errors")
 def _no_console_errors(state: BrowserState, _arg: Any) -> ValidatorResult:
     passed = len(state.console_errors) == 0
