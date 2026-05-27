@@ -98,6 +98,7 @@ class Spec:
     validators: list[dict[str, Any]]
     hints: list[str] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
+    teardown: list[dict[str, Any]] = field(default_factory=list)
     buffer: Buffer | None = None
     auth: AuthConfig | None = None
     base_url: str = ""
@@ -119,6 +120,7 @@ class Spec:
             validators=data.get("validators", []),
             hints=data.get("hints", []),
             actions=data.get("actions", []),
+            teardown=data.get("teardown", []),
             buffer=Buffer(**buf) if buf else None,
             auth=auth,
             base_url=data.get("base_url", ""),

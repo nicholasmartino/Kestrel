@@ -197,6 +197,16 @@ class Agent:
                 start_time=start_time,
             )
         finally:
+            if self.spec.teardown:
+                log_event("info", "Running teardown", {"actions": len(self.spec.teardown)})
+                for t in self.spec.teardown:
+                    try:
+                        import json
+                        action = parse_action(json.dumps(t))
+                        await self.browser.execute(action)
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        log_event("warn", "Teardown action failed", {"action": t, "error": str(e)})
             await self.browser.stop()
 
     async def _authenticate(self) -> bool:
