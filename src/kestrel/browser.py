@@ -210,6 +210,7 @@ class BrowserManager:
             elif action.action == "type":
                 if action.target and action.text is not None:
                     await self._type_by_text_or_label(action.target, action.text)
+                    await page.keyboard.press("Enter")
                 else:
                     return "type missing target or text"
 
