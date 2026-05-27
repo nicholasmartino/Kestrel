@@ -128,6 +128,14 @@ class BrowserManager:
                     if (text) results.links.push(text);
                 });
                 qsaDeep('*').forEach(el => {
+                    if (el.childNodes) {
+                        el.childNodes.forEach(child => {
+                            if (child.nodeType === 3) {
+                                const text = (child.textContent || '').trim();
+                                if (text && text.length < 200) results.visible_text.push(text);
+                            }
+                        });
+                    }
                     if (el.children.length === 0 && el.parentNode) {
                         const text = (el.innerText || '').trim();
                         if (text && text.length < 200) results.visible_text.push(text);
