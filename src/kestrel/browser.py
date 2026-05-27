@@ -332,8 +332,28 @@ class BrowserManager:
         label = label_match.group(2) if label_match else target
         name = label_match.group(1) if label_match else target
 
+        async def _try_fill(locator) -> bool:
+            """Try to fill, or click then fill for display elements that reveal inputs."""
+            nonlocal page
+            try:
+                await locator.fill(text, timeout=int(self._action_timeout * 1000))
+                return True
+            except Exception:
+                pass
+            # fill failed — likely a non-input element (div/span) that needs clicking first
+            try:
+                await locator.click(timeout=int(self._action_timeout * 1000))
+                await page.wait_for_timeout(300)
+                return False  # caller should retry with the same label
+            except Exception:
+                return False
+
         # Try the extracted label first
         try:
+            locator = page.get_by_label(label, exact=False).first
+            if await _try_fill(locator):
+                return
+            # clicked to reveal input, now fill the revealed input
             await page.get_by_label(label, exact=False).first.fill(text, timeout=int(self._action_timeout * 1000))
             return
         except Exception:
@@ -342,6 +362,9 @@ class BrowserManager:
         # Try the raw target as label
         if label != target:
             try:
+                locator = page.get_by_label(target, exact=False).first
+                if await _try_fill(locator):
+                    return
                 await page.get_by_label(target, exact=False).first.fill(text, timeout=int(self._action_timeout * 1000))
                 return
             except Exception:
