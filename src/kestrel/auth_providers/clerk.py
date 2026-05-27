@@ -57,10 +57,24 @@ class ClerkAuthProvider(AuthProvider):
             result = await page.evaluate(f"""
                 (async () => {{
                     try {{
-                        const signIn = await window.Clerk.client.signIn.create({{
+                        let signIn = await window.Clerk.client.signIn.create({{
                             identifier: {escaped_identifier},
                             password: {escaped_password}
                         }});
+
+                        if (signIn.status === 'needs_second_factor') {{
+                            const factors = signIn.supportedSecondFactors
+                                ? signIn.supportedSecondFactors.map(f => f.strategy)
+                                : [];
+                            if (factors.includes('email_code')) {{
+                                await signIn.prepareSecondFactor({{ strategy: 'email_code' }});
+                                signIn = await signIn.attemptSecondFactor({{
+                                    strategy: 'email_code',
+                                    code: '424242'
+                                }});
+                            }}
+                        }}
+
                         if (signIn.status === 'complete') {{
                             await window.Clerk.setActive({{
                                 session: signIn.createdSessionId
