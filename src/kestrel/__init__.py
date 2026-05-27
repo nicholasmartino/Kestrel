@@ -1,3 +1,10 @@
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("kestrel")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
+
 from kestrel.agent import Agent
 from kestrel.browser import BrowserManager
 from kestrel.llm import LLMClient

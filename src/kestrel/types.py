@@ -103,6 +103,11 @@ class Spec:
     base_url: str = ""
     timeout_seconds: int = 60
     max_steps: int = 20
+    action_timeout: float = 2.0
+    wait_action_duration: float = 1.0
+    poll_interval: float = 1.0
+    loop_window: int = 6
+    loop_threshold: int = 3
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Spec:
@@ -119,4 +124,9 @@ class Spec:
             base_url=data.get("base_url", ""),
             timeout_seconds=data.get("timeout_seconds", 60),
             max_steps=data.get("max_steps", 20),
+            action_timeout=data.get("action_timeout", 2.0),
+            wait_action_duration=data.get("wait_action_duration", 1.0),
+            poll_interval=data.get("poll_interval", 1.0),
+            loop_window=data.get("loop_window", 6),
+            loop_threshold=data.get("loop_threshold", 3),
         )

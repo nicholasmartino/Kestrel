@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Nicholas Martino"}
+    {name = "Kestrel Contributors"}
 ]
 keywords = ["playwright", "llm", "testing", "automation", "ollama"]
 classifiers = [
@@ -33,7 +33,7 @@ dependencies = [
 kestrel = "kestrel.cli:main"
 
 [project.urls]
-Repository = "https://github.com/nicholasmartino/kestrel"
+Repository = "https://github.com/kestrel-testing/kestrel"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kestrel"]

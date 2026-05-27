@@ -8,17 +8,20 @@ import re
 import aiohttp
 from playwright.async_api import BrowserContext, Page, Route
 
+from kestrel.auth_providers import register
 from kestrel.auth_providers.base import AuthProvider
 from kestrel.logging import log_event
 
 API_BASE = "https://api.clerk.com/v1"
 
 
+@register("clerk")
 class ClerkAuthProvider(AuthProvider):
-    def __init__(self, secret_key: str, identifier: str, password: str):
-        self.secret_key = secret_key
-        self.identifier = identifier
-        self.password = password
+    def __init__(self, **credentials: str) -> None:
+        super().__init__(**credentials)
+        self.secret_key = credentials.get("secret_key", "")
+        self.identifier = credentials.get("identifier", "")
+        self.password = credentials.get("password", "")
 
     async def authenticate(self, context: BrowserContext, page: Page) -> bool:
         if not self.secret_key:

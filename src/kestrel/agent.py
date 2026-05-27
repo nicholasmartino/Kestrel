@@ -234,11 +234,12 @@ class Agent:
             f"{state.url}:{last_action.action}:{last_action.target}".encode()
         ).hexdigest()
         self._loop_hashes.append(h)
-        # Loop if same hash appears 3+ times in last 6 steps
-        if len(self._loop_hashes) >= 6:
-            recent = self._loop_hashes[-6:]
+        window = self.spec.loop_window
+        threshold = self.spec.loop_threshold
+        if len(self._loop_hashes) >= window:
+            recent = self._loop_hashes[-window:]
             for candidate in set(recent):
-                if recent.count(candidate) >= 3:
+                if recent.count(candidate) >= threshold:
                     return True
         return False
 
@@ -262,7 +263,7 @@ class Agent:
                     if result.passed:
                         log_event("info", "Buffer condition met", {"detail": result.detail})
                         break
-                await asyncio.sleep(1)
+                await asyncio.sleep(self.spec.poll_interval)
             else:
                 log_event("info", "Buffer timed out", {})
             log_event("info", "Final page state", {"url": state.url, "title": state.title, "buttons": state.buttons[:10], "inputs": state.inputs[:10], "filled_inputs": state.filled_inputs[:10], "visible_text": state.visible_text[:10]})

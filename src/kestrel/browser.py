@@ -12,7 +12,13 @@ from kestrel.logging import log_event
 
 
 class BrowserManager:
-    def __init__(self, headless: bool = True, launch_args: list[str] | None = None):
+    def __init__(
+        self,
+        headless: bool = True,
+        launch_args: list[str] | None = None,
+        action_timeout: float = 2.0,
+        wait_action_duration: float = 1.0,
+    ):
         self.headless = headless
         base_args = launch_args or []
         extra_args = [
@@ -21,6 +27,8 @@ class BrowserManager:
         ]
         # Merge, deduplicating
         self._launch_args = base_args + [a for a in extra_args if a not in base_args]
+        self._action_timeout = action_timeout
+        self._wait_action_duration = wait_action_duration
         self._playwright = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
@@ -206,7 +214,7 @@ class BrowserManager:
                     return "type missing target or text"
 
             elif action.action == "wait":
-                await asyncio.sleep(1)
+                await asyncio.sleep(self._wait_action_duration)
 
             elif action.action == "done":
                 pass
@@ -224,14 +232,14 @@ class BrowserManager:
 
         # Try text match first
         try:
-            await page.get_by_text(target, exact=False).first.click(timeout=2000)
+            await page.get_by_text(target, exact=False).first.click(timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
 
         # Try label match
         try:
-            await page.get_by_label(target, exact=False).first.click(timeout=2000)
+            await page.get_by_label(target, exact=False).first.click(timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
@@ -239,7 +247,7 @@ class BrowserManager:
         # Try button role+name
         try:
             await page.get_by_role("button", name=target, exact=False).first.click(
-                timeout=2000
+                timeout=int(self._action_timeout * 1000)
             )
             return
         except Exception:
@@ -248,7 +256,7 @@ class BrowserManager:
         # Try CSS selector without force
         try:
             if target.startswith("#") or target.startswith(".") or target.startswith("["):
-                await page.locator(target).first.click(timeout=2000)
+                await page.locator(target).first.click(timeout=int(self._action_timeout * 1000))
                 return
         except Exception:
             pass
@@ -256,7 +264,7 @@ class BrowserManager:
         # Force-click fallback: bypass overlays (cookie consent, modals, etc.)
         try:
             await page.get_by_text(target, exact=False).first.click(
-                timeout=2000, force=True
+                timeout=int(self._action_timeout * 1000), force=True
             )
             return
         except Exception:
@@ -264,7 +272,7 @@ class BrowserManager:
 
         try:
             await page.get_by_role("button", name=target, exact=False).first.click(
-                timeout=2000, force=True
+                timeout=int(self._action_timeout * 1000), force=True
             )
             return
         except Exception:
@@ -273,7 +281,7 @@ class BrowserManager:
         # Force click with case-insensitive CSS matching
         try:
             css_target = re.sub(r'\[(\w+)=([^\]]+)\]', r'[\1=\2 i]', target)
-            await page.locator(css_target).first.click(timeout=2000, force=True)
+            await page.locator(css_target).first.click(timeout=int(self._action_timeout * 1000), force=True)
             return
         except Exception:
             pass
@@ -325,7 +333,7 @@ class BrowserManager:
 
         # Try the extracted label first
         try:
-            await page.get_by_label(label, exact=False).first.fill(text, timeout=2000)
+            await page.get_by_label(label, exact=False).first.fill(text, timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
@@ -333,14 +341,14 @@ class BrowserManager:
         # Try the raw target as label
         if label != target:
             try:
-                await page.get_by_label(target, exact=False).first.fill(text, timeout=2000)
+                await page.get_by_label(target, exact=False).first.fill(text, timeout=int(self._action_timeout * 1000))
                 return
             except Exception:
                 pass
 
         try:
             await page.get_by_placeholder(label, exact=False).first.fill(
-                text, timeout=2000
+                text, timeout=int(self._action_timeout * 1000)
             )
             return
         except Exception:
@@ -348,28 +356,28 @@ class BrowserManager:
 
         # Try input[name='name'] with the extracted name
         try:
-            await page.locator(f"input[name='{name}']").first.fill(text, timeout=2000)
+            await page.locator(f"input[name='{name}']").first.fill(text, timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
 
         # Case-insensitive CSS name match
         try:
-            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=2000)
+            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
 
         # Try matching by id (common pattern with htmlFor labels)
         try:
-            await page.locator(f"#{name.lower()}").first.fill(text, timeout=2000)
+            await page.locator(f"#{name.lower()}").first.fill(text, timeout=int(self._action_timeout * 1000))
             return
         except Exception:
             pass
 
         # Force fill as last resort to bypass overlays (cookie consent, etc.)
         try:
-            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=2000, force=True)
+            await page.locator(f"input[name='{name}' i]").first.fill(text, timeout=int(self._action_timeout * 1000), force=True)
             return
         except Exception:
             pass
@@ -377,7 +385,7 @@ class BrowserManager:
         # Fallback to CSS selector
         if target.startswith("#") or target.startswith(".") or target.startswith("["):
             try:
-                await page.locator(target).first.fill(text, timeout=2000, force=True)
+                await page.locator(target).first.fill(text, timeout=int(self._action_timeout * 1000), force=True)
                 return
             except Exception:
                 pass

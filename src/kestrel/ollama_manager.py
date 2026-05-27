@@ -15,9 +15,17 @@ class OllamaManager:
         self,
         base_url: str = "http://localhost:11434",
         model: str = "llama3.2:3b",
+        retry_attempts: int = 30,
+        retry_interval: float = 1.0,
+        health_check_timeout: float = 2.0,
+        startup_delay: float = 0.5,
     ):
         self.base_url = base_url
         self.model = model
+        self._retry_attempts = retry_attempts
+        self._retry_interval = retry_interval
+        self._health_check_timeout = health_check_timeout
+        self._startup_delay = startup_delay
 
     async def ensure_running(self) -> bool:
         """Check if Ollama is running; attempt to start if not."""
@@ -32,11 +40,11 @@ class OllamaManager:
             return False
 
         # Wait for it to come up
-        for attempt in range(30):
+        for attempt in range(self._retry_attempts):
             if await self._is_healthy():
                 log_event("info", "Ollama started successfully")
                 return True
-            await asyncio.sleep(1)
+            await asyncio.sleep(self._retry_interval)
 
         log_event("error", "Ollama did not become healthy in time")
         return False
@@ -81,7 +89,7 @@ class OllamaManager:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=2)
+                    f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=self._health_check_timeout)
                 ) as resp:
                     return resp.status == 200
         except Exception:
@@ -96,7 +104,7 @@ class OllamaManager:
                 stderr=subprocess.DEVNULL,
             )
             # Give it a moment to fail fast if the binary is missing
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(self._startup_delay)
             if proc.returncode is not None and proc.returncode != 0:
                 return False
             return True
