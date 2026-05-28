@@ -111,6 +111,12 @@ This creates:
 - `tests/autonomous/.env.example`
 - `.github/workflows/autonomous-test.yml`
 
+## Best Practices
+
+See [docs/best-practices.md](docs/best-practices.md) for a comprehensive guide on
+writing reliable specs, including target selection, action patterns, handling
+pre-seeded data, and debugging failures.
+
 ## Spec Format
 
 Specs are YAML files with the following structure:
